@@ -10,14 +10,14 @@ sys.path.append(r'K:\tools\FTrack\ftrack-api')
 import ftrack
 
 
-class AssetDelete(ftrack.Action):
+class SetVersion(ftrack.Action):
     '''Custom action.'''
 
     #: Action identifier.
-    identifier = 'asset.delete'
+    identifier = 'version.set'
 
     #: Action label.
-    label = 'Asset Delete'
+    label = 'SetVersion'
 
 
     def __init__(self):
@@ -43,6 +43,16 @@ class AssetDelete(ftrack.Action):
             self.launch
         )
 
+    def validateSelection(self, selection):
+        '''Return true if the selection is valid.
+
+        '''
+
+        if selection:
+            return False
+
+        return False
+
 
     def discover(self, event):
         '''Return action config if triggered on a single selection.'''
@@ -51,13 +61,9 @@ class AssetDelete(ftrack.Action):
         # If selection contains more than one item return early since
         # this action will only handle a single version.
         selection = data.get('selection', [])
-        if len(selection) > 1:
+        entityType = selection[0]['entityType']
+        if len(selection) != 1 or entityType != 'assetversion':
             return
-
-        if selection[0]['entityType'] == 'task':
-            task = ftrack.Task(selection[0]['entityId'])
-            if task.get('objecttypename') != 'Shot':
-                return
 
         return {
             'items': [{
@@ -72,29 +78,34 @@ class AssetDelete(ftrack.Action):
             # Do something with the values or return a new form.
             values = event['data']['values']
 
-            success = True
-            msg = 'Asset deleted.'
+            data = event['data']
+            selection = data.get('selection', [])
+            version = ftrack.AssetVersion(selection[0]['entityId'])
 
-            asset = ftrack.Asset(values['asset'])
-            asset.delete()
+            success = True
+            msg = 'Increased version number.'
+
+            if not values['version_number']:
+                success = False
+                msg = 'No number was submitted.'
+            else:
+                if int(values['version_number']) <= 0:
+                    success = False
+                    msg = 'Negative or zero is not valid.'
+                else:
+                    version.set('version', int(values['version_number']))
 
             return {
                 'success': success,
                 'message': msg
             }
 
-        data = []
-        shot = ftrack.Task(event['data']['selection'][0]['entityId'])
-        for asset in shot.getAssets():
-            data.append({'label': asset.getName(), 'value': asset.getId()})
-
         return {
             'items': [
                 {
-                    'label': 'Asset',
-                    'type': 'enumerator',
-                    'name': 'asset',
-                    'data': data
+                    'label': 'Version number',
+                    'type': 'number',
+                    'name': 'version_number'
                 }
             ]
         }
@@ -103,7 +114,7 @@ class AssetDelete(ftrack.Action):
 def register(registry, **kw):
     '''Register action. Called when used as an event plugin.'''
     logging.basicConfig(level=logging.INFO)
-    action = AssetDelete()
+    action = SetVersion()
     action.register()
 
 
@@ -133,7 +144,7 @@ def main(arguments=None):
     logging.basicConfig(level=loggingLevels[namespace.verbosity])
 
     ftrack.setup()
-    action = AssetDelete()
+    action = SetVersion()
     action.register()
 
     ftrack.EVENT_HUB.wait()
