@@ -109,7 +109,7 @@ class LaunchApplicationAction(object):
             *applicationIdentifier* to identify which application to start.
 
         '''
-        """
+
         applicationIdentifier = (
             event['data']['applicationIdentifier']
         )
@@ -122,10 +122,10 @@ class LaunchApplicationAction(object):
         )
 
         self.launcher.launch(applicationIdentifier, context)
-        """
+
         return {
             'success': True,
-            'message': 'something'
+            'message': 'RV Launched'
         }
 
 

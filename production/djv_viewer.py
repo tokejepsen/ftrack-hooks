@@ -23,7 +23,7 @@ class DJVViewer(ftrack.Action):
 
     def __init__(self):
         '''Initialise action handler.'''
-        self.logger = logging.getLogger(
+        self.log = logging.getLogger(
             __name__ + '.' + self.__class__.__name__
         )
 
@@ -46,13 +46,6 @@ class DJVViewer(ftrack.Action):
 
 
     def discover(self, event):
-        '''Return action config if triggered on a single selection.'''
-        data = event['data']
-
-        # filter to versions only
-        selection = data.get('selection', [])
-        if selection[0]['entityType'] != 'assetversion':
-            return
 
         return {
             'items': [{
@@ -71,7 +64,15 @@ class DJVViewer(ftrack.Action):
             values = event['data']['values']
 
             for item in selection:
-                version = ftrack.AssetVersion(item['entityId'])
+                version = None
+
+                try:
+                    task = ftrack.Task(item['entityId'])
+                    asset = task.getAssets(assetTypes=['img'])[0]
+                    version = asset.getVersions()[-1]
+                except:
+                    version = ftrack.AssetVersion(item['entityId'])
+
                 if version.getAsset().getType().getShort() == 'img':
 
                     component = None
@@ -101,7 +102,15 @@ class DJVViewer(ftrack.Action):
         # finding components on version
         components = []
         for item in selection:
-            version = ftrack.AssetVersion(item['entityId'])
+            version = None
+
+            try:
+                task = ftrack.Task(item['entityId'])
+                asset = task.getAssets(assetTypes=['img'])[0]
+                version = asset.getVersions()[-1]
+            except:
+                version = ftrack.AssetVersion(item['entityId'])
+
             if version.getAsset().getType().getShort() == 'img':
                 for c in version.getComponents():
                     components.append(c.getName())
