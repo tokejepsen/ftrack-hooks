@@ -164,7 +164,10 @@ class LaunchAction(object):
                 if a.getName().lower() == task.getName().lower():
                     asset = a
 
-            component = asset.getVersions()[-1].getComponent('nukescript')
+            version = asset.getVersions()[-1]
+            if not version.get('ispublished'):
+                version.publish()
+            component = version.getComponent('nukescript')
             current_path = '%s' % component.getFilesystemPath()
 
             # get current file data
@@ -274,7 +277,6 @@ class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
                 launchArguments=[path]
             ))
             """
-
             applications.extend(self._searchFilesystem(
                 expression=prefix + ['Nuke.*', 'Nuke\d.+.exe'],
                 versionExpression=nukeVersionExpression,
