@@ -4,26 +4,25 @@ import logging
 import os
 import getpass
 import pprint
-import subprocess
 
 sys.path.append(r'K:\tools\FTrack\ftrack-api')
 
 import ftrack
 
 
-class DJVViewer(ftrack.Action):
+class AssetDelete(ftrack.Action):
     '''Custom action.'''
 
     #: Action identifier.
-    identifier = 'djvviewer'
+    identifier = 'asset.delete'
 
     #: Action label.
-    label = 'DJV Viewer'
+    label = 'Asset Delete'
 
 
     def __init__(self):
         '''Initialise action handler.'''
-        self.log = logging.getLogger(
+        self.logger = logging.getLogger(
             __name__ + '.' + self.__class__.__name__
         )
 
@@ -46,6 +45,19 @@ class DJVViewer(ftrack.Action):
 
 
     def discover(self, event):
+        '''Return action config if triggered on a single selection.'''
+        data = event['data']
+
+        # If selection contains more than one item return early since
+        # this action will only handle a single version.
+        selection = data.get('selection', [])
+        if len(selection) > 1:
+            return
+
+        if selection[0]['entityType'] == 'task':
+            task = ftrack.Task(selection[0]['entityId'])
+            if task.get('objecttypename') != 'Shot':
+                return
 
         return {
             'items': [{
@@ -56,78 +68,35 @@ class DJVViewer(ftrack.Action):
 
 
     def launch(self, event):
-        data = event['data']
-        selection = data.get('selection', [])
-
         if 'values' in event['data']:
             # Do something with the values or return a new form.
             values = event['data']['values']
 
-            for item in selection:
-                version = None
+            success = True
+            msg = 'Asset deleted.'
 
-                try:
-                    task = ftrack.Task(item['entityId'])
-                    asset = task.getAssets(assetTypes=['img'])[0]
-                    version = asset.getVersions()[-1]
-                except:
-                    version = ftrack.AssetVersion(item['entityId'])
-
-                if version.getAsset().getType().getShort() == 'img':
-
-                    component = None
-                    try:
-                        component = version.getComponent(values['component'])
-                    except:
-                        pass
-
-                    if component:
-                        path = component.getFilesystemPath()
-                        extension = os.path.splitext(path)
-
-                        random_file = None
-                        for f in os.listdir(os.path.dirname(path)):
-                            if f.endswith(extension):
-                                dir_path = os.path.dirname(path)
-                                random_file = os.path.join(dir_path, f)
-
-                        args = [r'K:\tools\DJVViewer\djv-1.1.0-Windows-64\bin\djv_view.exe', random_file]
-                        subprocess.Popen(args)
+            asset = ftrack.Asset(values['asset'])
+            asset.delete()
 
             return {
-                'success': True,
-                'message': 'DJV Viewer launched.'
+                'success': success,
+                'message': msg
             }
 
-        # finding components on version
-        components = []
-        for item in selection:
-            version = None
-
-            try:
-                task = ftrack.Task(item['entityId'])
-                asset = task.getAssets(assetTypes=['img'])[0]
-                version = asset.getVersions()[-1]
-            except:
-                version = ftrack.AssetVersion(item['entityId'])
-
-            if not version.get('ispublished'):
-                version.publish()
-
-            if version.getAsset().getType().getShort() == 'img':
-                for c in version.getComponents():
-                    components.append(c.getName())
-
         data = []
-        for c in set(components):
-            data.append({'label': c, 'value': c})
+        shot = ftrack.Task(event['data']['selection'][0]['entityId'])
+        for asset in shot.getAssets():
+            if asset.getName():
+                data.append({'label': asset.getName(), 'value': asset.getId()})
+            else:
+                data.append({'label': 'None', 'value': asset.getId()})
 
         return {
             'items': [
                 {
-                    'label': 'Component to view',
+                    'label': 'Asset',
                     'type': 'enumerator',
-                    'name': 'component',
+                    'name': 'asset',
                     'data': data
                 }
             ]
@@ -137,7 +106,7 @@ class DJVViewer(ftrack.Action):
 def register(registry, **kw):
     '''Register action. Called when used as an event plugin.'''
     logging.basicConfig(level=logging.INFO)
-    action = DJVViewer()
+    action = AssetDelete()
     action.register()
 
 
@@ -167,7 +136,7 @@ def main(arguments=None):
     logging.basicConfig(level=loggingLevels[namespace.verbosity])
 
     ftrack.setup()
-    action = DJVViewer()
+    action = AssetDelete()
     action.register()
 
     ftrack.EVENT_HUB.wait()

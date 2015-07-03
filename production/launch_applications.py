@@ -11,8 +11,8 @@ import argparse
 import traceback
 
 sys.path.append(r'K:\tools\FTrack\ftrack-api')
-sys.path.append(r'K:\tools\FTrack\ftrack-connect-package\Windows\v0.1.7\common.zip')
-sys.path.append(r'K:\tools\FTrack\ftrack-connect-package\Windows\v0.1.7\library.zip')
+sys.path.append(r'K:\tools\FTrack\ftrack-connect-package\Windows\v0.2.0\common.zip')
+sys.path.append(r'K:\tools\FTrack\ftrack-connect-package\Windows\v0.2.0\library.zip')
 
 import ftrack
 import ftrack_connect.application
@@ -153,22 +153,51 @@ class LaunchAction(object):
             task = ftrack.Task(event['data']['selection'][0]['entityId'])
             type_name = task.getType().getName()
             asset = None
-            assets = task.getAssets(assetTypes=[type_name])
+            component = None
 
-            # if only one asset present, use that asset
-            if len(assets) == 1:
-                asset = assets[0]
+            if task.getAssets(assetTypes=['scene']):
 
-            # search for asset with same name as task
-            for a in task.getAssets(assetTypes=[type_name]):
-                if a.getName().lower() == task.getName().lower():
-                    asset = a
+                # search for asset with same name as task
+                for a in task.getAssets(assetTypes=['scene']):
+                    if a.getName().lower() == task.getName().lower():
+                        asset = a
 
-            version = asset.getVersions()[-1]
-            if not version.get('ispublished'):
-                version.publish()
-            component = version.getComponent('nukescript')
-            current_path = '%s' % component.getFilesystemPath()
+                component_name = applicationIdentifier.split('_')[0] + '_work'
+
+                for v in reversed(asset.getVersions()):
+                    if not v.get('ispublished'):
+                        v.publish()
+
+                    for c in v.getComponents():
+                        if c.getName() == component_name:
+                            component = c
+
+                    if component:
+                        break
+            else:
+
+                assets = task.getAssets(assetTypes=[type_name])
+
+                # if only one asset present, use that asset
+                if len(assets) == 1:
+                    asset = assets[0]
+
+                # search for asset with same name as task
+                for a in task.getAssets(assetTypes=[type_name]):
+                    if a.getName().lower() == task.getName().lower():
+                        asset = a
+
+                version = asset.getVersions()[-1]
+                if not version.get('ispublished'):
+                    version.publish()
+
+                if 'nuke' in applicationIdentifier:
+                    component = version.getComponent('nukescript')
+                if 'maya' in applicationIdentifier:
+                    component = version.getComponent('work_file')
+
+            current_path = component.getFilesystemPath()
+            self.logger.info('Component path: %s' % current_path)
 
             # get current file data
             current_dir = os.path.dirname(current_path)
@@ -197,6 +226,8 @@ class LaunchAction(object):
             msg = "Couldn't find any file to launch:"
             msg += " %s" % traceback.format_exc()
             self.logger.info(msg)
+
+        self.logger.info('Found path: %s' % path)
 
         applicationStore = LegacyApplicationStore()
         applicationStore._modifyApplications(path)
@@ -228,6 +259,9 @@ class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
 
         '''
         applications = []
+        launchArguments = []
+        if path:
+            launchArguments = [path]
 
         if sys.platform == 'darwin':
             prefix = ['/', 'Applications']
@@ -268,22 +302,22 @@ class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
             nukeVersionExpression = re.compile(
                 r'(?P<version>[\d.]+[vabc]+[\dvabc.]*)'
             )
-            """
+
             applications.extend(self._searchFilesystem(
                 expression=prefix + ['Autodesk', 'Maya.+', 'bin', 'maya.exe'],
                 label='Maya {version}',
                 applicationIdentifier='maya_{version}',
                 icon='maya',
-                launchArguments=[path]
+                launchArguments=launchArguments
             ))
-            """
+
             applications.extend(self._searchFilesystem(
                 expression=prefix + ['Nuke.*', 'Nuke\d.+.exe'],
                 versionExpression=nukeVersionExpression,
                 label='Nuke {version}',
                 applicationIdentifier='nuke_{version}',
                 icon='nuke',
-                launchArguments=[path]
+                launchArguments=launchArguments
             ))
 
             # Add NukeX as a separate application
@@ -293,7 +327,7 @@ class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
                 label='NukeX {version}',
                 applicationIdentifier='nukex_{version}',
                 icon='nukex',
-                launchArguments=['--nukex', path]
+                launchArguments=['--nukex'].extend(launchArguments)
             ))
 
             applications.extend(self._searchFilesystem(
@@ -301,7 +335,7 @@ class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
                 label='Hiero {version}',
                 applicationIdentifier='hiero_{version}',
                 icon='hiero',
-                launchArguments=[path]
+                launchArguments=launchArguments
             ))
 
             # Somewhere along the way The Foundry changed the default install directory.

@@ -1,29 +1,31 @@
+# :coding: utf-8
+# :copyright: Copyright (c) 2015 Milan Kolar
+
 import sys
 import argparse
 import logging
 import os
 import getpass
 import pprint
-import subprocess
 
 sys.path.append(r'K:\tools\FTrack\ftrack-api')
 
 import ftrack
 
 
-class DJVViewer(ftrack.Action):
+class ComponentAdd(ftrack.Action):
     '''Custom action.'''
 
     #: Action identifier.
-    identifier = 'djvviewer'
+    identifier = 'component.add'
 
     #: Action label.
-    label = 'DJV Viewer'
+    label = 'ComponentAdd'
 
 
     def __init__(self):
         '''Initialise action handler.'''
-        self.log = logging.getLogger(
+        self.logger = logging.getLogger(
             __name__ + '.' + self.__class__.__name__
         )
 
@@ -44,8 +46,27 @@ class DJVViewer(ftrack.Action):
             self.launch
         )
 
+    def validateSelection(self, selection):
+        '''Return true if the selection is valid.
+
+        '''
+
+        if selection:
+            return False
+
+        return False
+
 
     def discover(self, event):
+        '''Return action config if triggered on a single selection.'''
+        data = event['data']
+
+        # If selection contains more than one item return early since
+        # this action will only handle a single version.
+        selection = data.get('selection', [])
+        entityType = selection[0]['entityType']
+        if len(selection) != 1 or entityType != 'assetversion':
+            return
 
         return {
             'items': [{
@@ -56,79 +77,52 @@ class DJVViewer(ftrack.Action):
 
 
     def launch(self, event):
-        data = event['data']
-        selection = data.get('selection', [])
-
         if 'values' in event['data']:
             # Do something with the values or return a new form.
             values = event['data']['values']
 
-            for item in selection:
-                version = None
+            data = event['data']
+            selection = data.get('selection', [])
+            version = ftrack.AssetVersion(selection[0]['entityId'])
 
-                try:
-                    task = ftrack.Task(item['entityId'])
-                    asset = task.getAssets(assetTypes=['img'])[0]
-                    version = asset.getVersions()[-1]
-                except:
-                    version = ftrack.AssetVersion(item['entityId'])
+            if not values['component_name'] or not values['component_path']:
+                return {
+                    'success': False,
+                    'message': 'Missing input.'
+                }
 
-                if version.getAsset().getType().getShort() == 'img':
+            if not os.path.exists(values['component_path']):
+                return {
+                    'success': False,
+                    'message': "Path doesn't exist."
+                }
 
-                    component = None
-                    try:
-                        component = version.getComponent(values['component'])
-                    except:
-                        pass
-
-                    if component:
-                        path = component.getFilesystemPath()
-                        extension = os.path.splitext(path)
-
-                        random_file = None
-                        for f in os.listdir(os.path.dirname(path)):
-                            if f.endswith(extension):
-                                dir_path = os.path.dirname(path)
-                                random_file = os.path.join(dir_path, f)
-
-                        args = [r'K:\tools\DJVViewer\djv-1.1.0-Windows-64\bin\djv_view.exe', random_file]
-                        subprocess.Popen(args)
+            try:
+                version.createComponent(name=values['component_name'],
+                                        path=values['component_path'])
+                version.publish()
+            except:
+                return {
+                    'success': False,
+                    'message': "Component already exists."
+                }
 
             return {
                 'success': True,
-                'message': 'DJV Viewer launched.'
+                'message': 'Component Added'
             }
-
-        # finding components on version
-        components = []
-        for item in selection:
-            version = None
-
-            try:
-                task = ftrack.Task(item['entityId'])
-                asset = task.getAssets(assetTypes=['img'])[0]
-                version = asset.getVersions()[-1]
-            except:
-                version = ftrack.AssetVersion(item['entityId'])
-
-            if not version.get('ispublished'):
-                version.publish()
-
-            if version.getAsset().getType().getShort() == 'img':
-                for c in version.getComponents():
-                    components.append(c.getName())
-
-        data = []
-        for c in set(components):
-            data.append({'label': c, 'value': c})
 
         return {
             'items': [
                 {
-                    'label': 'Component to view',
-                    'type': 'enumerator',
-                    'name': 'component',
-                    'data': data
+                    'label': 'Component Name',
+                    'type': 'text',
+                    'name': 'component_name',
+                },
+                {
+                    'label': 'Component Path',
+                    'type': 'text',
+                    'name': 'component_path',
                 }
             ]
         }
@@ -137,7 +131,7 @@ class DJVViewer(ftrack.Action):
 def register(registry, **kw):
     '''Register action. Called when used as an event plugin.'''
     logging.basicConfig(level=logging.INFO)
-    action = DJVViewer()
+    action = ComponentAdd()
     action.register()
 
 
@@ -167,7 +161,7 @@ def main(arguments=None):
     logging.basicConfig(level=loggingLevels[namespace.verbosity])
 
     ftrack.setup()
-    action = DJVViewer()
+    action = ComponentAdd()
     action.register()
 
     ftrack.EVENT_HUB.wait()
