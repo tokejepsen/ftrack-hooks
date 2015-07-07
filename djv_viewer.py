@@ -83,11 +83,11 @@ class DJVViewer(ftrack.Action):
 
                     if component:
                         path = component.getFilesystemPath()
-                        extension = os.path.splitext(path)
+                        ext = os.path.splitext(path)[1]
 
                         random_file = None
                         for f in os.listdir(os.path.dirname(path)):
-                            if f.endswith(extension):
+                            if f.endswith(ext):
                                 dir_path = os.path.dirname(path)
                                 random_file = os.path.join(dir_path, f)
 
