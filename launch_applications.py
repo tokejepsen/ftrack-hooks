@@ -10,9 +10,11 @@ import re
 import argparse
 import traceback
 
+ftrack_connect_path = r'K:\tools\FTrack\ftrack-connect-package\Windows\v0.2.0'
+
 sys.path.append(r'K:\tools\FTrack\ftrack-api')
-sys.path.append(r'K:\tools\FTrack\ftrack-connect-package\Windows\v0.2.0\common.zip')
-sys.path.append(r'K:\tools\FTrack\ftrack-connect-package\Windows\v0.2.0\library.zip')
+sys.path.append(os.path.join(ftrack_connect_path, 'common.zip'))
+sys.path.append(os.path.join(ftrack_connect_path, 'library.zip'))
 
 import ftrack
 import ftrack_connect.application
@@ -233,7 +235,8 @@ class LaunchAction(object):
         applicationStore._modifyApplications(path)
 
         launcher = LegacyApplicationLauncher(applicationStore,
-            legacyPluginsPath=r'K:\tools\FTrack\ftrack-connect-package\Windows\v0.1.7\resource\legacy_plugins')
+            legacyPluginsPath=os.path.join(ftrack_connect_path, 'resource',
+                                            'legacy_plugins'))
 
         return launcher.launch(applicationIdentifier, context)
 
