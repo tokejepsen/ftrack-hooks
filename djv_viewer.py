@@ -6,7 +6,10 @@ import getpass
 import pprint
 import subprocess
 
-sys.path.append(r'K:\tools\FTrack\ftrack-api')
+tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+if __name__ == '__main__':
+    sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
 
 import ftrack
 
@@ -51,6 +54,7 @@ class DJVViewer(ftrack.Action):
             'items': [{
                 'label': self.label,
                 'actionIdentifier': self.identifier,
+                'icon': "http://a.fsdn.com/allura/p/djv/icon"
             }]
         }
 
@@ -91,7 +95,9 @@ class DJVViewer(ftrack.Action):
                                 dir_path = os.path.dirname(path)
                                 random_file = os.path.join(dir_path, f)
 
-                        args = [r'K:\tools\DJVViewer\djv-1.1.0-Windows-64\bin\djv_view.exe', random_file]
+                        path = os.path.join(tools_path, 'djv-viewer',
+                                'djv-1.1.0-Windows-64', 'bin', 'djv_view.exe')
+                        args = [path, random_file]
                         subprocess.Popen(args)
 
             return {

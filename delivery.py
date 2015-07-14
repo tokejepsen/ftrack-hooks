@@ -5,10 +5,12 @@ import shutil
 import getpass
 import traceback
 import tempfile
-
-
 import sys
-sys.path.append(r'K:\tools\FTrack\ftrack-api')
+
+if __name__ == '__main__':
+    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
+
 import ftrack
 
 temp_dir = tempfile.gettempdir()

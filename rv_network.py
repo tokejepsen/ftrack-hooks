@@ -7,8 +7,17 @@ import pprint
 import logging
 import json
 import re
+import os
+import argparse
 
-#sys.path.append(r'K:\tools\FTrack\ftrack-api')
+tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+if __name__ == '__main__':
+    sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
+
+    ftrack_connect_path = os.path.join(tools_path, 'ftrack',
+                                'ftrack-connect-package', 'windows', 'v0.2.0')
+    sys.path.append(os.path.join(ftrack_connect_path, 'common.zip'))
 
 import ftrack
 import ftrack_connect.application
@@ -149,8 +158,11 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
 
         if sys.platform == 'win32':
 
+            path = os.path.dirname(os.path.dirname(tools_path))
+
             applications.extend(self._searchFilesystem(
-                expression=['K:\\', 'tools', 'RV', 'RV.\d.+', 'bin', 'rv.exe'],
+                expression=[path, 'development', 'tools', 'rv', 'RV.\d.+',
+                            'bin', 'rv.exe'],
                 versionExpression=re.compile(r'(?P<version>\d+.\d+.\d+)'),
                 label='Review with RV {version}',
                 applicationIdentifier='rv_{version}_with_review',
@@ -183,3 +195,50 @@ def register(registry, **kw):
     # Create action and register to respond to discover and launch actions.
     action = LaunchApplicationAction(applicationStore, launcher)
     action.register()
+
+
+def main(arguments=None):
+    '''Set up logging and register action.'''
+    if arguments is None:
+        arguments = []
+
+    parser = argparse.ArgumentParser()
+    # Allow setting of logging level from arguments.
+    loggingLevels = {}
+    for level in (
+        logging.NOTSET, logging.DEBUG, logging.INFO, logging.WARNING,
+        logging.ERROR, logging.CRITICAL
+    ):
+        loggingLevels[logging.getLevelName(level).lower()] = level
+
+    parser.add_argument(
+        '-v', '--verbosity',
+        help='Set the logging output verbosity.',
+        choices=loggingLevels.keys(),
+        default='info'
+    )
+    namespace = parser.parse_args(arguments)
+
+    '''Register action and listen for events.'''
+    logging.basicConfig(level=loggingLevels[namespace.verbosity])
+    log = logging.getLogger()
+
+    ftrack.setup()
+
+    # Create store containing applications.
+    applicationStore = ApplicationStore()
+
+    # Create a launcher with the store containing applications.
+    launcher = ftrack_connect.application.ApplicationLauncher(
+        applicationStore
+    )
+
+    # Create action and register to respond to discover and launch actions.
+    action = LaunchApplicationAction(applicationStore, launcher)
+    action.register()
+
+    ftrack.EVENT_HUB.wait()
+
+
+if __name__ == '__main__':
+    raise SystemExit(main(sys.argv[1:]))

@@ -91,6 +91,7 @@ def launch(event):
     }
 
 
+"""
 def register(registry, **kw):
     ftrack.EVENT_HUB.subscribe(
         'topic=ftrack.action.discover and source.user.username={0}'.format(
@@ -106,3 +107,4 @@ def register(registry, **kw):
         ),
         launch
     )
+"""

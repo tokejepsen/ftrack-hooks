@@ -1,15 +1,14 @@
 # :coding: utf-8
-# :copyright: Copyright (c) 2014 ftrack
+# :copyright: Copyright (c) 2015 ftrack
 
-import os
 import getpass
 import sys
 import pprint
 import logging
 import re
+import os
 import argparse
 import traceback
-
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 ftrack_connect_path = os.path.join(tools_path, 'ftrack',
@@ -18,19 +17,28 @@ ftrack_connect_path = os.path.join(tools_path, 'ftrack',
 if __name__ == '__main__':
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
     sys.path.append(os.path.join(ftrack_connect_path, 'common.zip'))
-    sys.path.append(os.path.join(ftrack_connect_path, 'library.zip'))
     os.environ['PYTHONPATH'] = os.path.join(ftrack_connect_path, 'common.zip')
+
+    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish',
+                                                    'pyblish-win', 'pythonpath')
+
+    os.environ['NUKE_PATH'] = os.pathsep + os.path.join(tools_path, 'pyblish',
+                                                    'pyblish-win', 'lib',
+                                                    'pyblish-x', 'integrations',
+                                                    'nuke')
+    os.environ['NUKE_PATH'] += os.pathsep + os.path.join(tools_path, 'ftrack',
+                                                    'ftrack-tools')
 
 import ftrack
 import ftrack_connect.application
 
 
-class LaunchAction(object):
-    '''ftrack connect legacy plugins discover and launch action.'''
+class LaunchApplicationAction(object):
+    '''Discover and launch nuke.'''
 
-    identifier = 'launch-application'
+    identifier = 'ftrack-connect-launch-nuke'
 
-    def __init__(self, applicationStore, launcher):
+    def __init__(self, application_store, launcher):
         '''Initialise action with *applicationStore* and *launcher*.
 
         *applicationStore* should be an instance of
@@ -40,21 +48,31 @@ class LaunchAction(object):
         :class:`ftrack_connect.application.ApplicationLauncher`.
 
         '''
-        super(LaunchAction, self).__init__()
+        super(LaunchApplicationAction, self).__init__()
 
         self.logger = logging.getLogger(
             __name__ + '.' + self.__class__.__name__
         )
 
-        self.applicationStore = applicationStore
+        self.application_store = application_store
         self.launcher = launcher
 
-    def isValidSelection(self, selection):
-        '''Return true if the selection is valid.
+    # newer version pop-up
+    def version_get(self, string, prefix, suffix = None):
+        """Extract version information from filenames.  Code from Foundry's nukescripts.version_get()"""
 
-        Legacy plugins can only be started from a single Task.
+        if string is None:
+           raise ValueError, "Empty version string - no match"
 
-        '''
+        regex = "[/_.]"+prefix+"\d+"
+        matches = re.findall(regex, string, re.IGNORECASE)
+        if not len(matches):
+            msg = "No \"_"+prefix+"#\" found in \""+string+"\""
+            raise ValueError, msg
+        return (matches[-1:][0][1], re.search("\d+", matches[-1:][0]).group())
+
+    def is_valid_selection(self, selection):
+        '''Return true if the selection is valid.'''
         if (
             len(selection) != 1 or
             selection[0]['entityType'] != 'task'
@@ -70,7 +88,7 @@ class LaunchAction(object):
         return True
 
     def register(self):
-        '''Override register to filter discover actions on logged in user.'''
+        '''Register discover actions on logged in user.'''
         ftrack.EVENT_HUB.subscribe(
             'topic=ftrack.action.discover and source.user.username={0}'.format(
                 getpass.getuser()
@@ -88,44 +106,31 @@ class LaunchAction(object):
 
     def discover(self, event):
         '''Return discovered applications.'''
-        if not self.isValidSelection(
+
+        if not self.is_valid_selection(
             event['data'].get('selection', [])
         ):
             return
 
         items = []
-        applications = self.applicationStore.applications
+        applications = self.application_store.applications
         applications = sorted(
             applications, key=lambda application: application['label']
         )
 
         for application in applications:
-            applicationIdentifier = application['identifier']
+            application_identifier = application['identifier']
             label = application['label']
             items.append({
                 'actionIdentifier': self.identifier,
                 'label': label,
                 'icon': application.get('icon', 'default'),
-                'applicationIdentifier': applicationIdentifier
+                'applicationIdentifier': application_identifier
             })
 
         return {
             'items': items
         }
-
-    # newer version pop-up
-    def version_get(self, string, prefix, suffix = None):
-        """Extract version information from filenames.  Code from Foundry's nukescripts.version_get()"""
-
-        if string is None:
-           raise ValueError, "Empty version string - no match"
-
-        regex = "[/_.]"+prefix+"\d+"
-        matches = re.findall(regex, string, re.IGNORECASE)
-        if not len(matches):
-            msg = "No \"_"+prefix+"#\" found in \""+string+"\""
-            raise ValueError, msg
-        return (matches[-1:][0][1], re.search("\d+", matches[-1:][0]).group())
 
     def launch(self, event):
         '''Handle *event*.
@@ -138,14 +143,10 @@ class LaunchAction(object):
         # Prevent further processing by other listeners.
         event.stop()
 
-        if not self.isValidSelection(
+        if not self.is_valid_selection(
             event['data'].get('selection', [])
         ):
             return
-
-        applicationIdentifier = (
-            event['data']['applicationIdentifier']
-        )
 
         applicationIdentifier = event['data']['applicationIdentifier']
         context = event['data'].copy()
@@ -234,27 +235,11 @@ class LaunchAction(object):
 
         self.logger.info('Found path: %s' % path)
 
-        applicationStore = LegacyApplicationStore()
-        applicationStore._modifyApplications(path)
-
         # adding application and task environment
         environment = {}
 
-        data = []
-
         tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         pyblish_path = os.path.join(tools_path, 'pyblish')
-
-        if 'PYBLISHPLUGINPATH' in os.environ:
-            for path in os.environ['PYBLISHPLUGINPATH'].split(os.pathsep):
-                data.append(path)
-        else:
-            data.append(os.path.join(pyblish_path, 'pyblish-ftrack',
-                    'pyblish_ftrack','plugins'))
-            data.append(os.path.join(pyblish_path, 'pyblish-deadline',
-                    'pyblish_deadline','plugins'))
-            data.append(os.path.join(pyblish_path, 'pyblish-bumpybox',
-                    'pyblish_bumpybox','plugins'))
 
         app_plugins = os.path.join(pyblish_path, 'pyblish-bumpybox',
                                     'pyblish_bumpybox', 'plugins',
@@ -263,6 +248,12 @@ class LaunchAction(object):
         task_plugins = os.path.join(app_plugins,
                                     task.getType().getName().lower())
 
+        data = [os.path.join(pyblish_path, 'pyblish-ftrack',
+                'pyblish_ftrack','plugins')]
+        data.append(os.path.join(pyblish_path, 'pyblish-deadline',
+                'pyblish_deadline','plugins'))
+        data.append(os.path.join(pyblish_path, 'pyblish-bumpybox',
+                'pyblish_bumpybox','plugins'))
         data.append(app_plugins)
         data.append(task_plugins)
 
@@ -271,15 +262,20 @@ class LaunchAction(object):
         context['environment'] = environment
 
         # launching the app
-        launcher = LegacyApplicationLauncher(applicationStore,
-            legacyPluginsPath=os.path.join(ftrack_connect_path, 'resource',
-                                            'legacy_plugins'))
+        applicationStore = ApplicationStore()
+        applicationStore._modifyApplications(path)
+
+        path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
+                        'windows', 'v0.2.0', 'resource', 'ftrack_connect_nuke')
+        launcher = ApplicationLauncher(applicationStore,
+                                    plugin_path=os.environ.get(
+                                    'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))
+
 
         return launcher.launch(applicationIdentifier, context)
 
 
-class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
-    '''Discover and store available applications on this host.'''
+class ApplicationStore(ftrack_connect.application.ApplicationStore):
 
     def _modifyApplications(self, path=''):
         self.applications = self._discoverApplications(path=path)
@@ -308,37 +304,27 @@ class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
 
             # Specify custom expression for Nuke to ensure the complete version
             # number (e.g. 9.0v3) is picked up.
-            nukeVersionExpression = re.compile(
+            nuke_version_expression = re.compile(
                 r'(?P<version>[\d.]+[vabc]+[\dvabc.]*)'
             )
 
             applications.extend(self._searchFilesystem(
-                expression=prefix + ['Autodesk', 'Maya.+', 'bin', 'maya.exe'],
-                label='Maya {version}',
-                applicationIdentifier='maya_{version}',
-                icon='maya',
+                expression=prefix + ['Nuke.*', 'Nuke\d.+.exe'],
+                versionExpression=nuke_version_expression,
+                label='Nuke {version}',
+                applicationIdentifier='nuke_{version}',
+                icon='nuke',
                 launchArguments=launchArguments
             ))
 
+            # Add NukeX as a separate application
             applications.extend(self._searchFilesystem(
-                expression=prefix + ['Hiero\d.+', 'hiero.exe'],
-                label='Hiero {version}',
-                applicationIdentifier='hiero_{version}',
-                icon='hiero',
-                launchArguments=launchArguments
-            ))
-
-            # Somewhere along the way The Foundry changed the default install directory.
-            # Add the old directory as expression to find old installations of Hiero
-            # as well.
-            #
-            # TODO: Refactor this once ``_searchFilesystem`` is more sophisticated.
-            applications.extend(self._searchFilesystem(
-                expression=prefix + ['The Foundry', 'Hiero\d.+', 'hiero.exe'],
-                label='Hiero {version}',
-                applicationIdentifier='hiero_{version}',
-                icon='hiero',
-                launchArguments=[path]
+                expression=prefix + ['Nuke.*', 'Nuke\d.+.exe'],
+                versionExpression=nuke_version_expression,
+                label='NukeX {version}',
+                applicationIdentifier='nukex_{version}',
+                icon='nukex',
+                launchArguments=['--nukex'].extend(launchArguments)
             ))
 
         self.logger.debug(
@@ -350,34 +336,25 @@ class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
         return applications
 
 
-class LegacyApplicationLauncher(
-    ftrack_connect.application.ApplicationLauncher
-):
-    '''Launch applications with legacy plugin support.'''
+class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
+    '''Custom launcher to modify environment before launch.'''
 
-    def __init__(self, applicationStore, legacyPluginsPath):
-        '''Instantiate launcher with *applicationStore* of applications.
+    def __init__(self, application_store, plugin_path):
+        '''.'''
+        super(ApplicationLauncher, self).__init__(application_store)
 
-        *applicationStore* should be an instance of :class:`ApplicationStore`
-        holding information about applications that can be launched.
+        self.plugin_path = plugin_path
 
-        *legacyPluginsPath* should be the path where the legacy plugins are
-        located.
+    def _getApplicationEnvironment(
+        self, application, context=None
+    ):
+        '''Override to modify environment before launch.'''
 
-        '''
-        super(LegacyApplicationLauncher, self).__init__(applicationStore)
-        self.legacyPluginsPath = legacyPluginsPath
-        self.logger.debug('Legacy plugin path: {0}'.format(
-            self.legacyPluginsPath
-        ))
-
-    def _getApplicationEnvironment(self, application, context):
-        '''Modify and return environment with legacy plugins added.'''
+        # Make sure to call super to retrieve original environment
+        # which contains the selection and ftrack API.
         environment = super(
-            LegacyApplicationLauncher, self
-        )._getApplicationEnvironment(
-            application, context
-        )
+            ApplicationLauncher, self
+        )._getApplicationEnvironment(application, context)
 
         applicationIdentifier = application['identifier']
 
@@ -388,122 +365,62 @@ class LegacyApplicationLauncher(
 
             environment[k] = path[1:]
 
-        isNuke = applicationIdentifier.startswith('nuke')
-        isMaya = applicationIdentifier.startswith('maya')
-        isHiero = (
-            applicationIdentifier.startswith('hiero') and
-            'player' not in applicationIdentifier
+        entity = context['selection'][0]
+        task = ftrack.Task(entity['entityId'])
+        taskParent = task.getParent()
+
+        try:
+            environment['FS'] = str(int(taskParent.getFrameStart()))
+        except Exception:
+            environment['FS'] = '1'
+
+        try:
+            environment['FE'] = str(int(taskParent.getFrameEnd()))
+        except Exception:
+            environment['FE'] = '1'
+
+        environment['FTRACK_TASKID'] = task.getId()
+        environment['FTRACK_SHOTID'] = task.get('parent_id')
+
+        nuke_plugin_path = os.path.abspath(
+            os.path.join(
+                self.plugin_path, 'nuke_path'
+            )
+        )
+        environment = ftrack_connect.application.appendPath(
+            nuke_plugin_path, 'NUKE_PATH', environment
         )
 
-        if (
-            os.path.isdir(self.legacyPluginsPath) and
-            (isNuke or isMaya or isHiero)
-        ):
-            entity = context['selection'][0]
-            task = ftrack.Task(entity['entityId'])
-            taskParent = task.getParent()
-
-            try:
-                environment['FS'] = str(int(taskParent.getFrameStart()))
-            except Exception:
-                environment['FS'] = '1'
-
-            try:
-                environment['FE'] = str(int(taskParent.getFrameEnd()))
-            except Exception:
-                environment['FE'] = '1'
-
-            environment['FTRACK_TASKID'] = task.getId()
-            environment['FTRACK_SHOTID'] = task.get('parent_id')
-
-            includeFoundryAssetManager = False
-
-            # Append legacy plugin base to PYTHONPATH.
-            environment = ftrack_connect.application.appendPath(
-                self.legacyPluginsPath, 'PYTHONPATH', environment
+        nuke_plugin_path = os.path.abspath(
+            os.path.join(
+                self.plugin_path, 'ftrack_connect_nuke'
             )
+        )
+        environment = ftrack_connect.application.appendPath(
+            self.plugin_path, 'FOUNDRY_ASSET_PLUGIN_PATH', environment
+        )
 
-            # Load Nuke specific environment such as legacy plugins.
-            if isNuke:
-                nukePluginPath = os.path.join(
-                    self.legacyPluginsPath, 'ftrackNukePlugin'
-                )
-
-                environment = ftrack_connect.application.appendPath(
-                    nukePluginPath, 'NUKE_PATH', environment
-                )
-
-                includeFoundryAssetManager = True
-
-            # Load Hiero plugins if application is Hiero.
-            if isHiero:
-                hieroPluginPath = os.path.join(
-                    self.legacyPluginsPath, 'ftrackHieroPlugin'
-                )
-
-                environment = ftrack_connect.application.appendPath(
-                    hieroPluginPath, 'HIERO_PLUGIN_PATH', environment
-                )
-
-                includeFoundryAssetManager = True
-
-            # Load Maya specific environment such as legacy plugins.
-            if isMaya:
-                mayaPluginPath = os.path.join(
-                    self.legacyPluginsPath, 'ftrackMayaPlugin'
-                )
-
-                environment = ftrack_connect.application.appendPath(
-                    mayaPluginPath, 'MAYA_PLUG_IN_PATH', environment
-                )
-                environment = ftrack_connect.application.appendPath(
-                    mayaPluginPath, 'MAYA_SCRIPT_PATH', environment
-                )
-                environment = ftrack_connect.application.appendPath(
-                    mayaPluginPath, 'PYTHONPATH', environment
-                )
-
-            # Add the foundry asset manager packages if application is
-            # Nuke, NukeStudio or Hiero.
-            if includeFoundryAssetManager:
-                foundryAssetManagerPluginPath = os.path.join(
-                    self.legacyPluginsPath, 'ftrackProvider'
-                )
-
-                environment = ftrack_connect.application.appendPath(
-                    foundryAssetManagerPluginPath,
-                    'FOUNDRY_ASSET_PLUGIN_PATH',
-                    environment
-                )
-
-                foundryAssetManagerPath = os.path.join(
-                    self.legacyPluginsPath,
-                    'theFoundry'
-                )
-
-                environment = ftrack_connect.application.prependPath(
-                    foundryAssetManagerPath, 'PYTHONPATH', environment
-                )
+        environment['NUKE_USE_FNASSETAPI'] = '1'
 
         return environment
 
 
 def register(registry, **kw):
-    '''Register hooks for ftrack connect legacy plugins.'''
-    applicationStore = LegacyApplicationStore()
+    '''Register hooks.'''
+
+    # Create store containing applications.
+    application_store = ApplicationStore()
 
     path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                            'windows', 'v0.2.0', 'resource', 'legacy_plugins')
-    launcher = LegacyApplicationLauncher(
-        applicationStore,
-        legacyPluginsPath=os.environ.get(
-            'FTRACK_PYTHON_LEGACY_PLUGINS_PATH', path
-        )
-    )
+                    'windows', 'v0.2.0', 'resource', 'ftrack_connect_nuke')
+    launcher = ApplicationLauncher(application_store,
+                                plugin_path=os.environ.get(
+                                'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))
 
-    # Create action and register to respond to discover and launch events.
-    action = LaunchAction(applicationStore, launcher)
+    # Create action and register to respond to discover and launch actions.
+    action = LaunchApplicationAction(application_store, launcher)
     action.register()
+
 
 def main(arguments=None):
     '''Set up logging and register action.'''
@@ -529,22 +446,21 @@ def main(arguments=None):
 
     '''Register action and listen for events.'''
     logging.basicConfig(level=loggingLevels[namespace.verbosity])
+    log = logging.getLogger()
 
     ftrack.setup()
 
-    applicationStore = LegacyApplicationStore()
+    # Create store containing applications.
+    application_store = ApplicationStore()
 
     path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                            'windows', 'v0.2.0', 'resource', 'legacy_plugins')
-    launcher = LegacyApplicationLauncher(
-        applicationStore,
-        legacyPluginsPath=os.environ.get(
-            'FTRACK_PYTHON_LEGACY_PLUGINS_PATH', path
-        )
-    )
+                    'windows', 'v0.2.0', 'resource', 'ftrack_connect_nuke')
+    launcher = ApplicationLauncher(application_store,
+                                plugin_path=os.environ.get(
+                                'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))
 
-    # Create action and register to respond to discover and launch events.
-    action = LaunchAction(applicationStore, launcher)
+    # Create action and register to respond to discover and launch actions.
+    action = LaunchApplicationAction(application_store, launcher)
     action.register()
 
     ftrack.EVENT_HUB.wait()
