@@ -3,25 +3,24 @@ import argparse
 import logging
 import os
 import getpass
+import pprint
 import subprocess
-import re
-
-tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
 if __name__ == '__main__':
+    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
 
 import ftrack
 
 
-class DJVViewer(ftrack.Action):
+class Action(ftrack.Action):
     '''Custom action.'''
 
     #: Action identifier.
-    identifier = 'djvviewer'
+    identifier = 'quicktime'
 
     #: Action label.
-    label = 'DJV Viewer'
+    label = 'Quicktime'
 
 
     def __init__(self):
@@ -64,7 +63,7 @@ class DJVViewer(ftrack.Action):
         if entity['entityType'] == 'assetversion':
             asset_version = ftrack.AssetVersion(entity['entityId'])
 
-            if asset_version.getAsset().getType().getShort() != 'img':
+            if asset_version.getAsset().getType().getShort() != 'mov':
                 return False
 
         return True
@@ -78,7 +77,7 @@ class DJVViewer(ftrack.Action):
             'items': [{
                 'label': self.label,
                 'actionIdentifier': self.identifier,
-                'icon': "http://a.fsdn.com/allura/p/djv/icon"
+                'icon': "https://upload.wikimedia.org/wikipedia/fr/b/b6/Logo_quicktime.png"
             }]
         }
 
@@ -93,34 +92,17 @@ class DJVViewer(ftrack.Action):
 
             component = ftrack.Component(values['component'])
 
-            path = component.getFilesystemPath()
-            ext = os.path.splitext(path)[1]
+            f = component.getFilesystemPath()
 
-            files = []
-            if '%' in path:
-                head = os.path.basename(path).split('%')[0]
-                padding = int(os.path.basename(path).split('%')[1][0:2])
-                tail = os.path.basename(path).split('%')[1][3:]
-                pattern = r'%s[0-9]{%s}%s' % (head, padding, tail)
 
-                for f in os.listdir(os.path.dirname(path)):
-                    if re.findall(pattern, f):
-                        dir_path = os.path.dirname(path)
-                        files.append(os.path.join(dir_path, f))
-            else:
-                for f in os.listdir(os.path.dirname(path)):
-                    if f.endswith(ext):
-                        dir_path = os.path.dirname(path)
-                        files.append(os.path.join(dir_path, f))
-
-            path = os.path.join(tools_path, 'djv-viewer',
-                    'djv-1.1.0-Windows-64', 'bin', 'djv_view.exe')
-            args = [path, files[0]]
+            path = os.path.join(r'C:\Program Files (x86)\QuickTime',
+                                                'QuickTimePlayer.exe')
+            args = [path, f]
             subprocess.Popen(args)
 
             return {
                 'success': True,
-                'message': 'DJV Viewer launched.'
+                'message': 'Quicktime launched.'
             }
 
         # finding components on version
@@ -131,7 +113,7 @@ class DJVViewer(ftrack.Action):
 
             try:
                 task = ftrack.Task(item['entityId'])
-                asset = task.getAssets(assetTypes=['img'])[0]
+                asset = task.getAssets(assetTypes=['mov'])[0]
             except:
                 version = ftrack.AssetVersion(item['entityId'])
 
@@ -167,7 +149,7 @@ class DJVViewer(ftrack.Action):
 def register(registry, **kw):
     '''Register action. Called when used as an event plugin.'''
     logging.basicConfig(level=logging.INFO)
-    action = DJVViewer()
+    action = Action()
     action.register()
 
 
@@ -197,7 +179,7 @@ def main(arguments=None):
     logging.basicConfig(level=loggingLevels[namespace.verbosity])
 
     ftrack.setup()
-    action = DJVViewer()
+    action = Action()
     action.register()
 
     ftrack.EVENT_HUB.wait()

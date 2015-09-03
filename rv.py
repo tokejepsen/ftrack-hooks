@@ -158,21 +158,19 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
 
         if sys.platform == 'win32':
 
-            path = os.path.dirname(os.path.dirname(tools_path))
-
+            path = tools_path.split(os.sep) + ['rv', 'RV.\d.+', 'bin', 'rv.exe']
             applications.extend(self._searchFilesystem(
-                expression=[path, 'development', 'tools', 'rv', 'RV.\d.+',
-                            'bin', 'rv.exe'],
+                expression=path,
                 versionExpression=re.compile(r'(?P<version>\d+.\d+.\d+)'),
                 label='Review with RV {version}',
                 applicationIdentifier='rv_{version}_with_review',
-                icon='rv',
+                icon='https://www.shotgunsoftware.com/img/home/icon_RV.png',
                 launchArguments=[
                     '-flags', 'ModeManagerPreload=ftrack'
                 ]
             ))
 
-        self.logger.debug(
+        self.logger.info(
             'Discovered applications:\n{0}'.format(
                 pprint.pformat(applications)
             )

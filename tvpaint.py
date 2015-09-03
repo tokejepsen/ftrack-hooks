@@ -10,7 +10,6 @@ import os
 import argparse
 import traceback
 import shutil
-import _winreg
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 ftrack_connect_path = os.path.join(tools_path, 'ftrack',
@@ -31,7 +30,7 @@ import ftrack_connect.application
 class LaunchApplicationAction(object):
     '''Discover and launch nuke.'''
 
-    identifier = 'ftrack-connect-launch-celaction'
+    identifier = 'ftrack-connect-launch-tvpaint'
 
     def __init__(self, application_store, launcher):
         '''Initialise action with *applicationStore* and *launcher*.
@@ -127,10 +126,6 @@ class LaunchApplicationAction(object):
             'items': items
         }
 
-    def get_path(self, task):
-
-        pass
-
     def launch(self, event):
         '''Handle *event*.
 
@@ -160,23 +155,46 @@ class LaunchApplicationAction(object):
             asset = None
             component = None
 
-            # search for asset with same name as task
-            for a in task.getAssets(assetTypes=['scene']):
-                if a.getName().lower() == task.getName().lower():
-                    asset = a
+            if task.getAssets(assetTypes=['scene']):
 
-            component_name = 'celaction_work'
+                # search for asset with same name as task
+                for a in task.getAssets(assetTypes=['scene']):
+                    if a.getName().lower() == task.getName().lower():
+                        asset = a
 
-            for v in reversed(asset.getVersions()):
-                if not v.get('ispublished'):
-                    v.publish()
+                component_name = 'tvpaint_work'
 
-                for c in v.getComponents():
-                    if c.getName() == component_name:
-                        component = c
+                for v in reversed(asset.getVersions()):
+                    if not v.get('ispublished'):
+                        v.publish()
 
-                if component:
-                    break
+                    for c in v.getComponents():
+                        if c.getName() == component_name:
+                            component = c
+
+                    if component:
+                        break
+            else:
+
+                assets = task.getAssets(assetTypes=[type_name])
+
+                # if only one asset present, use that asset
+                if len(assets) == 1:
+                    asset = assets[0]
+
+                # search for asset with same name as task
+                for a in task.getAssets(assetTypes=[type_name]):
+                    if a.getName().lower() == task.getName().lower():
+                        asset = a
+
+                version = asset.getVersions()[-1]
+                if not version.get('ispublished'):
+                    version.publish()
+
+                if 'nuke' in applicationIdentifier:
+                    component = version.getComponent('nukescript')
+                if 'maya' in applicationIdentifier:
+                    component = version.getComponent('work_file')
 
             current_path = component.getFilesystemPath()
             self.logger.info('Component path: %s' % current_path)
@@ -210,15 +228,6 @@ class LaunchApplicationAction(object):
             self.logger.info(msg)
 
         if path:
-            version_string = 'v' + str(max_version).zfill(3)
-            ext = os.path.splitext(current_path)[1]
-            path_dir = os.path.dirname(path)
-            files = []
-            for f in os.listdir(path_dir):
-                if version_string in f and f.endswith(ext):
-                    files.append(os.path.join(path_dir, f))
-
-            path = max([f for f in files], key=os.path.getctime)
             self.logger.info('Found path: %s' % path)
 
         # adding application and task environment
@@ -257,20 +266,6 @@ class LaunchApplicationAction(object):
                                     plugin_path=os.environ.get(
                                     'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))
 
-        # modify registry settings
-        hKey = _winreg.OpenKey (_winreg.HKEY_CURRENT_USER,
-                            r'Software\CelAction\CelAction2D\User Settings', 0,
-                                                        _winreg.KEY_ALL_ACCESS)
-
-        pyblish_path = os.path.join(pyblish_path, 'pyblish.bat')
-        _winreg.SetValueEx(hKey, 'SubmitAppTitle', 0, _winreg.REG_SZ,
-                                                                pyblish_path)
-
-        parameters = ' -d scene *SCENE* -d chunk *CHUNK* -d start *START*'
-        parameters += ' -d end *END* -d x *X* -d y *Y*'
-        _winreg.SetValueEx(hKey, 'SubmitParametersTitle', 0,
-                                    _winreg.REG_SZ, parameters)
-
         return launcher.launch(applicationIdentifier, context)
 
 
@@ -294,23 +289,34 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
 
         '''
         applications = []
+        cmd = 'cmd=[tv_WriteUserString pyblish script '
+        cmd += os.path.join(tools_path, 'pyblish', 'pyblish.bat')
+        cmd += "][tv_WriteUserString pyblish path "
+        cmd += os.path.join(os.path.expanduser('~'), 'temp.bat]')
 
-        launchArguments = []
+        tvpx = os.path.join(os.path.dirname(__file__), 'tvpaint.tvpx')
+        tvpx = tvpx.replace('\\', '/')
+
+        launchArguments = [cmd, tvpx]
         if path:
             launchArguments.append(path)
 
         if sys.platform == 'win32':
+            prefix = ['C:\\', 'Program Files.*']
 
+            # Add NukeX as a separate application
             applications.extend(self._searchFilesystem(
-                expression=['C:\\', 'Program Files*', 'CelAction',
-                'CelAction2D.exe'],
-                label='CelAction',
-                applicationIdentifier='celaction',
-                icon='https://pbs.twimg.com/profile_images/3741062735/e0b8fce362e6b3ff7414f4cdfa1a4a75_400x400.png',
+                expression=prefix + ['TVPaint Developpement',
+                'TVPaint Animation.*',
+                r'TVPaint Animation \d+ Pro \(64bits\)\.exe'],
+                versionExpression=re.compile(r'(?P<version>\d+ Pro)'),
+                label='TV Paint {version}',
+                applicationIdentifier='tvpaint_{version}',
+                icon='http://libregraphicsworld.org/cache/5fca87f959eeb6c3d9ae328d02aa267c.png',
                 launchArguments=launchArguments
             ))
 
-        self.logger.debug(
+        self.logger.info(
             'Discovered applications:\n{0}'.format(
                 pprint.pformat(applications)
             )

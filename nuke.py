@@ -168,7 +168,7 @@ class LaunchApplicationAction(object):
                     if a.getName().lower() == task.getName().lower():
                         asset = a
 
-                component_name = applicationIdentifier.split('_')[0] + '_work'
+                component_name = 'nuke_work'
 
                 for v in reversed(asset.getVersions()):
                     if not v.get('ispublished'):
@@ -242,8 +242,7 @@ class LaunchApplicationAction(object):
         pyblish_path = os.path.join(tools_path, 'pyblish')
 
         app_plugins = os.path.join(pyblish_path, 'pyblish-bumpybox',
-                                    'pyblish_bumpybox', 'plugins',
-                                    applicationIdentifier.split('_')[0])
+                                    'pyblish_bumpybox', 'plugins', 'nuke')
 
         task_plugins = os.path.join(app_plugins,
                                     task.getType().getName().lower())
@@ -296,8 +295,12 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
         '''
         applications = []
         launchArguments = []
+        nukexLaunchArguments = ['--nukex']
+        hieroLaunchArguments = ['--hiero']
         if path:
             launchArguments = [path]
+            nukexLaunchArguments.append(path)
+            hieroLaunchArguments.append(path)
 
         if sys.platform == 'win32':
             prefix = ['C:\\', 'Program Files.*']
@@ -324,7 +327,17 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
                 label='NukeX {version}',
                 applicationIdentifier='nukex_{version}',
                 icon='nukex',
-                launchArguments=['--nukex'].extend(launchArguments)
+                launchArguments=nukexLaunchArguments
+            ))
+
+            # Add Hiero as a separate application
+            applications.extend(self._searchFilesystem(
+                expression=prefix + ['Nuke.*', 'Nuke\d.+.exe'],
+                versionExpression=nuke_version_expression,
+                label='Hiero {version}',
+                applicationIdentifier='hiero_{version}',
+                icon='hiero',
+                launchArguments=hieroLaunchArguments
             ))
 
         self.logger.debug(

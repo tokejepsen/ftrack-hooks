@@ -1,0 +1,46 @@
+// collecting user data
+// start TVP with 'TVP.exe "cmd=[tv_WriteUserString pyblish script pyblish][tv_WriteUserString pyblish path [~USER]/temp.bat]"'
+tv_ReadUserString pyblish script
+PARSE result pyblishScript
+pyblishScript = pyblishScript
+tv_ReadUserString pyblish path
+PARSE result pyblishPath
+
+// collecting all layers data
+args = ''
+loop= 1
+i= 0
+WHILE loop
+	tv_LayerGetID i
+	curLID= result
+	IF CMP(curLID,"NONE")==0
+		// START RUN ON LAYER
+    tv_layerSet curLID
+    tv_LayerInfo
+    PARSE result layerDisplay layerPosition layerOpacity layerName layerType layerStart layerEnd layerPrelighttable layerPostlighttable layerSelection
+    IF CMP(layerDisplay, ON)==1
+      args = args' --data layer'i'"'layerName'"'
+    END
+		// END RUN ON LAYER
+		i= i+1
+	ELSE
+		loop=0
+	END
+END
+
+// adding scene data
+tv_ProjectInfo
+PARSE result projectname projectwidth projectheight projectpixelaspect projectframerate projectfield projectprojectstartframe
+args = args' --data scene "'projectname'"'
+
+// adding application data
+tv_version
+PARSE result appName appVersion appLanguage
+args = args' --data applicationVersion 'appVersion
+
+script = pyblishScript' 'args
+PRINT script
+
+//tv_SaveProject
+tv_WriteTextFile "Create" pyblishPath script
+tv_runscript pyblishPath
