@@ -10,10 +10,13 @@ import os
 import argparse
 import traceback
 import shutil
+import threading
+import subprocess
+import time
+import utils
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-ftrack_connect_path = os.path.join(tools_path, 'ftrack',
-                                'ftrack-connect-package', 'windows', 'v0.2.0')
+ftrack_connect_path = utils.GetFtrackConnectPath()
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
@@ -25,6 +28,35 @@ if __name__ == '__main__':
 
 import ftrack
 import ftrack_connect.application
+
+
+class ApplicationThread(threading.Thread):
+    def __init__(self, launcher, applicationIdentifier, context, task):
+        self.stdout = None
+        self.stderr = None
+        threading.Thread.__init__(self)
+        self.launcher = launcher
+        self.applicationIdentifier = applicationIdentifier
+        self.context = context
+        self.task = task
+
+        self.logger = logging.getLogger(
+            __name__ + '.' + self.__class__.__name__
+        )
+
+    def run(self):
+
+        self.logger.info('start time log')
+
+        timelog = ftrack.createTimelog(1, contextId=self.task.getId())
+        start_time = time.time()
+
+        self.launcher.launch(self.applicationIdentifier, self.context)
+
+        duration = time.time() - start_time
+        timelog.set('duration', value=duration)
+
+        self.logger.info('end time log')
 
 
 class LaunchApplicationAction(object):
@@ -235,10 +267,13 @@ class LaunchApplicationAction(object):
             project = task.getParents()[-1]
             path = [project.getRoot()]
 
-            if task.getParents()[-2].get('objecttypename') == 'Episode':
-                path.append('episodes')
-            if task.getParents()[-2].get('objecttypename') == 'Sequence':
-                path.append('sequences')
+            try:
+                if task.getParents()[-2].get('objecttypename') == 'Episode':
+                    path.append('episodes')
+                if task.getParents()[-2].get('objecttypename') == 'Sequence':
+                    path.append('sequences')
+            except Exception as e:
+                self.logger.info(e)
 
             for p in reversed(task.getParents()[:-1]):
                 path.append(p.getName())
@@ -292,8 +327,8 @@ class LaunchApplicationAction(object):
         applicationStore = ApplicationStore()
         applicationStore._modifyApplications(path)
 
-        path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                        'windows', 'v0.2.0', 'resource', 'ftrack_connect_nuke')
+        path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+                            'ftrack_connect_nuke')
         launcher = ApplicationLauncher(applicationStore,
                                     plugin_path=os.environ.get(
                                     'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))
@@ -306,9 +341,30 @@ class LaunchApplicationAction(object):
         src = os.path.join(os.path.dirname(__file__), 'Publish.jsx')
         dst = os.path.join(scripts_path, 'Publish.jsx')
 
-        shutil.copy(src, dst)
+        data = ''
+        with open(src, 'r') as f:
+            for line in f.readlines():
+                if 'pyblish_path' in line:
+                    pyblish_path = os.path.join(pyblish_path, 'pyblish-win',
+                                                'bin', 'pyblish-standalone.bat')
+                    pyblish_path = pyblish_path.replace('\\', '/')
+                    data += line.format(pyblish_path=pyblish_path)
+                else:
+                    data += line
 
-        return launcher.launch(applicationIdentifier, context)
+        with open(dst, 'w') as f:
+            f.write(data)
+
+        myclass = ApplicationThread(launcher, applicationIdentifier, context,
+                                                                        task)
+        myclass.start()
+
+        ftrack.EVENT_HUB.publishReply(event,
+            data={
+                'success': True,
+                'message': 'Launched %s!' % applicationIdentifier
+            }
+        )
 
 
 class ApplicationStore(ftrack_connect.application.ApplicationStore):
@@ -365,6 +421,95 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
         super(ApplicationLauncher, self).__init__(application_store)
 
         self.plugin_path = plugin_path
+
+    def launch(self, applicationIdentifier, context=None):
+        '''Launch application matching *applicationIdentifier*.
+
+        *context* should provide information that can guide how to launch the
+        application.
+
+        Return a dictionary of information containing:
+
+            success - A boolean value indicating whether application launched
+                      successfully or not.
+            message - Any additional information (such as a failure message).
+
+        '''
+        # Look up application.
+        applicationIdentifierPattern = applicationIdentifier
+        if applicationIdentifierPattern == 'hieroplayer':
+            applicationIdentifierPattern += '*'
+
+        application = self.applicationStore.getApplication(
+            applicationIdentifierPattern
+        )
+
+        if application is None:
+            return {
+                'success': False,
+                'message': (
+                    '{0} application not found.'
+                    .format(applicationIdentifier)
+                )
+            }
+
+        # Construct command and environment.
+        command = self._getApplicationLaunchCommand(application, context)
+        environment = self._getApplicationEnvironment(application, context)
+
+        # Environment must contain only strings.
+        self._conformEnvironment(environment)
+
+        success = True
+        message = '{0} application started.'.format(application['label'])
+
+        try:
+            options = dict(
+                env=environment,
+                close_fds=True
+            )
+
+            # Ensure that current working directory is set to the root of the
+            # application being launched to avoid issues with applications
+            # locating shared libraries etc.
+            applicationRootPath = os.path.dirname(application['path'])
+            options['cwd'] = applicationRootPath
+
+            # Ensure subprocess is detached so closing connect will not also
+            # close launched applications.
+            if sys.platform == 'win32':
+                options['creationflags'] = subprocess.CREATE_NEW_CONSOLE
+            else:
+                options['preexec_fn'] = os.setsid
+
+            self.logger.debug(
+                'Launching {0} with options {1}'.format(command, options)
+            )
+            process = subprocess.Popen(command, **options)
+            process.wait()
+
+        except (OSError, TypeError):
+            self.logger.exception(
+                '{0} application could not be started with command "{1}".'
+                .format(applicationIdentifier, command)
+            )
+
+            success = False
+            message = '{0} application could not be started.'.format(
+                application['label']
+            )
+
+        else:
+            self.logger.debug(
+                '{0} application started. (pid={1})'.format(
+                    applicationIdentifier, process.pid
+                )
+            )
+
+        return {
+            'success': success,
+            'message': message
+        }
 
     def _getApplicationEnvironment(
         self, application, context=None
@@ -432,8 +577,9 @@ def register(registry, **kw):
     # Create store containing applications.
     application_store = ApplicationStore()
 
-    path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                    'windows', 'v0.2.0', 'resource', 'ftrack_connect_nuke')
+    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+                        'ftrack_connect_nuke')
+
     launcher = ApplicationLauncher(application_store,
                                 plugin_path=os.environ.get(
                                 'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))
@@ -474,8 +620,8 @@ def main(arguments=None):
     # Create store containing applications.
     application_store = ApplicationStore()
 
-    path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                    'windows', 'v0.2.0', 'resource', 'ftrack_connect_nuke')
+    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+                        'ftrack_connect_nuke')
     launcher = ApplicationLauncher(application_store,
                                 plugin_path=os.environ.get(
                                 'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))

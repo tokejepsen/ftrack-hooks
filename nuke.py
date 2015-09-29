@@ -9,10 +9,14 @@ import re
 import os
 import argparse
 import traceback
+import subprocess
+import time
+import threading
+import utils
+
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-ftrack_connect_path = os.path.join(tools_path, 'ftrack',
-                                'ftrack-connect-package', 'windows', 'v0.2.0')
+ftrack_connect_path = utils.GetFtrackConnectPath()
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
@@ -32,6 +36,33 @@ if __name__ == '__main__':
 import ftrack
 import ftrack_connect.application
 
+class ApplicationThread(threading.Thread):
+    def __init__(self, launcher, applicationIdentifier, context, task):
+        self.stdout = None
+        self.stderr = None
+        threading.Thread.__init__(self)
+        self.launcher = launcher
+        self.applicationIdentifier = applicationIdentifier
+        self.context = context
+        self.task = task
+
+        self.logger = logging.getLogger(
+            __name__ + '.' + self.__class__.__name__
+        )
+
+    def run(self):
+
+        self.logger.info('start time log')
+
+        timelog = ftrack.createTimelog(1, contextId=self.task.getId())
+        start_time = time.time()
+
+        self.launcher.launch(self.applicationIdentifier, self.context)
+
+        duration = time.time() - start_time
+        timelog.set('duration', value=duration)
+
+        self.logger.info('end time log')
 
 class LaunchApplicationAction(object):
     '''Discover and launch nuke.'''
@@ -161,46 +192,25 @@ class LaunchApplicationAction(object):
             asset = None
             component = None
 
-            if task.getAssets(assetTypes=['scene']):
+            # search for asset with same name as task
+            for a in task.getAssets(assetTypes=['scene']):
+                if a.getName().lower() == task.getName().lower():
+                    asset = a
 
-                # search for asset with same name as task
-                for a in task.getAssets(assetTypes=['scene']):
-                    if a.getName().lower() == task.getName().lower():
-                        asset = a
+            component_name = 'nuke_work'
+            if 'hiero' in applicationIdentifier:
+                component_name = 'hiero_work'
 
-                component_name = 'nuke_work'
+            for v in reversed(asset.getVersions()):
+                if not v.get('ispublished'):
+                    v.publish()
 
-                for v in reversed(asset.getVersions()):
-                    if not v.get('ispublished'):
-                        v.publish()
+                for c in v.getComponents():
+                    if c.getName() == component_name:
+                        component = c
 
-                    for c in v.getComponents():
-                        if c.getName() == component_name:
-                            component = c
-
-                    if component:
-                        break
-            else:
-
-                assets = task.getAssets(assetTypes=[type_name])
-
-                # if only one asset present, use that asset
-                if len(assets) == 1:
-                    asset = assets[0]
-
-                # search for asset with same name as task
-                for a in task.getAssets(assetTypes=[type_name]):
-                    if a.getName().lower() == task.getName().lower():
-                        asset = a
-
-                version = asset.getVersions()[-1]
-                if not version.get('ispublished'):
-                    version.publish()
-
-                if 'nuke' in applicationIdentifier:
-                    component = version.getComponent('nukescript')
-                if 'maya' in applicationIdentifier:
-                    component = version.getComponent('work_file')
+                if component:
+                    break
 
             current_path = component.getFilesystemPath()
             self.logger.info('Component path: %s' % current_path)
@@ -243,6 +253,9 @@ class LaunchApplicationAction(object):
 
         app_plugins = os.path.join(pyblish_path, 'pyblish-bumpybox',
                                     'pyblish_bumpybox', 'plugins', 'nuke')
+        if 'hiero' in applicationIdentifier:
+            app_plugins = os.path.join(pyblish_path, 'pyblish-bumpybox',
+                                        'pyblish_bumpybox', 'plugins', 'hiero')
 
         task_plugins = os.path.join(app_plugins,
                                     task.getType().getName().lower())
@@ -264,14 +277,22 @@ class LaunchApplicationAction(object):
         applicationStore = ApplicationStore()
         applicationStore._modifyApplications(path)
 
-        path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                        'windows', 'v0.2.0', 'resource', 'ftrack_connect_nuke')
+        path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+                            'ftrack_connect_nuke')
         launcher = ApplicationLauncher(applicationStore,
                                     plugin_path=os.environ.get(
                                     'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))
 
+        myclass = ApplicationThread(launcher, applicationIdentifier, context,
+                                                                        task)
+        myclass.start()
 
-        return launcher.launch(applicationIdentifier, context)
+        ftrack.EVENT_HUB.publishReply(event,
+            data={
+                'success': True,
+                'message': 'Launched %s!' % applicationIdentifier
+            }
+        )
 
 
 class ApplicationStore(ftrack_connect.application.ApplicationStore):
@@ -358,6 +379,95 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
 
         self.plugin_path = plugin_path
 
+    def launch(self, applicationIdentifier, context=None):
+        '''Launch application matching *applicationIdentifier*.
+
+        *context* should provide information that can guide how to launch the
+        application.
+
+        Return a dictionary of information containing:
+
+            success - A boolean value indicating whether application launched
+                      successfully or not.
+            message - Any additional information (such as a failure message).
+
+        '''
+        # Look up application.
+        applicationIdentifierPattern = applicationIdentifier
+        if applicationIdentifierPattern == 'hieroplayer':
+            applicationIdentifierPattern += '*'
+
+        application = self.applicationStore.getApplication(
+            applicationIdentifierPattern
+        )
+
+        if application is None:
+            return {
+                'success': False,
+                'message': (
+                    '{0} application not found.'
+                    .format(applicationIdentifier)
+                )
+            }
+
+        # Construct command and environment.
+        command = self._getApplicationLaunchCommand(application, context)
+        environment = self._getApplicationEnvironment(application, context)
+
+        # Environment must contain only strings.
+        self._conformEnvironment(environment)
+
+        success = True
+        message = '{0} application started.'.format(application['label'])
+
+        try:
+            options = dict(
+                env=environment,
+                close_fds=True
+            )
+
+            # Ensure that current working directory is set to the root of the
+            # application being launched to avoid issues with applications
+            # locating shared libraries etc.
+            applicationRootPath = os.path.dirname(application['path'])
+            options['cwd'] = applicationRootPath
+
+            # Ensure subprocess is detached so closing connect will not also
+            # close launched applications.
+            if sys.platform == 'win32':
+                options['creationflags'] = subprocess.CREATE_NEW_CONSOLE
+            else:
+                options['preexec_fn'] = os.setsid
+
+            self.logger.debug(
+                'Launching {0} with options {1}'.format(command, options)
+            )
+            process = subprocess.Popen(command, **options)
+            process.wait()
+
+        except (OSError, TypeError):
+            self.logger.exception(
+                '{0} application could not be started with command "{1}".'
+                .format(applicationIdentifier, command)
+            )
+
+            success = False
+            message = '{0} application could not be started.'.format(
+                application['label']
+            )
+
+        else:
+            self.logger.debug(
+                '{0} application started. (pid={1})'.format(
+                    applicationIdentifier, process.pid
+                )
+            )
+
+        return {
+            'success': success,
+            'message': message
+        }
+
     def _getApplicationEnvironment(
         self, application, context=None
     ):
@@ -424,8 +534,8 @@ def register(registry, **kw):
     # Create store containing applications.
     application_store = ApplicationStore()
 
-    path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                    'windows', 'v0.2.0', 'resource', 'ftrack_connect_nuke')
+    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+                        'ftrack_connect_nuke')
     launcher = ApplicationLauncher(application_store,
                                 plugin_path=os.environ.get(
                                 'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))
@@ -466,8 +576,8 @@ def main(arguments=None):
     # Create store containing applications.
     application_store = ApplicationStore()
 
-    path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                    'windows', 'v0.2.0', 'resource', 'ftrack_connect_nuke')
+    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+                        'ftrack_connect_nuke')
     launcher = ApplicationLauncher(application_store,
                                 plugin_path=os.environ.get(
                                 'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))

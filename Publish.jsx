@@ -18,6 +18,5 @@ args += '--scene "' + app.project.file.fsName + '"';
 
 $.setenv("PYBLISHARGUMENTS", args);
 
-var batFile= new File("K:/production/tools/pyblish/pyblish.bat");
-
+var batFile= new File("{pyblish_path}");
 batFile.execute();

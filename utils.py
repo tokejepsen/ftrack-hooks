@@ -2,9 +2,17 @@ import os
 import tempfile
 import subprocess
 import operator
+import sys
+
+tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
 
 import ftrack
 
+
+def GetFtrackConnectPath():
+    return os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
+                        'windows', 'v0.2.3')
 
 def GetStatusByName(entity, name):
     project = entity.getParents()[-1]

@@ -9,11 +9,14 @@ import logging
 import re
 import argparse
 import traceback
+import threading
+import subprocess
+import time
+import utils
 
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-ftrack_connect_path = os.path.join(tools_path, 'ftrack',
-                                'ftrack-connect-package', 'windows', 'v0.2.0')
+ftrack_connect_path = utils.GetFtrackConnectPath()
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
@@ -23,6 +26,35 @@ if __name__ == '__main__':
 
 import ftrack
 import ftrack_connect.application
+
+
+class ApplicationThread(threading.Thread):
+    def __init__(self, launcher, applicationIdentifier, context, task):
+        self.stdout = None
+        self.stderr = None
+        threading.Thread.__init__(self)
+        self.launcher = launcher
+        self.applicationIdentifier = applicationIdentifier
+        self.context = context
+        self.task = task
+
+        self.logger = logging.getLogger(
+            __name__ + '.' + self.__class__.__name__
+        )
+
+    def run(self):
+
+        self.logger.info('start time log')
+
+        timelog = ftrack.createTimelog(1, contextId=self.task.getId())
+        start_time = time.time()
+
+        self.launcher.launch(self.applicationIdentifier, self.context)
+
+        duration = time.time() - start_time
+        timelog.set('duration', value=duration)
+
+        self.logger.info('end time log')
 
 
 class LaunchAction(object):
@@ -275,7 +307,16 @@ class LaunchAction(object):
             legacyPluginsPath=os.path.join(ftrack_connect_path, 'resource',
                                             'legacy_plugins'))
 
-        return launcher.launch(applicationIdentifier, context)
+        myclass = ApplicationThread(launcher, applicationIdentifier, context,
+                                                                        task)
+        myclass.start()
+
+        ftrack.EVENT_HUB.publishReply(event,
+            data={
+                'success': True,
+                'message': 'Launched %s!' % applicationIdentifier
+            }
+        )
 
 
 class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
@@ -320,27 +361,6 @@ class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
                 launchArguments=launchArguments
             ))
 
-            applications.extend(self._searchFilesystem(
-                expression=prefix + ['Hiero\d.+', 'hiero.exe'],
-                label='Hiero {version}',
-                applicationIdentifier='hiero_{version}',
-                icon='hiero',
-                launchArguments=launchArguments
-            ))
-
-            # Somewhere along the way The Foundry changed the default install directory.
-            # Add the old directory as expression to find old installations of Hiero
-            # as well.
-            #
-            # TODO: Refactor this once ``_searchFilesystem`` is more sophisticated.
-            applications.extend(self._searchFilesystem(
-                expression=prefix + ['The Foundry', 'Hiero\d.+', 'hiero.exe'],
-                label='Hiero {version}',
-                applicationIdentifier='hiero_{version}',
-                icon='hiero',
-                launchArguments=[path]
-            ))
-
         self.logger.debug(
             'Discovered applications:\n{0}'.format(
                 pprint.pformat(applications)
@@ -370,6 +390,95 @@ class LegacyApplicationLauncher(
         self.logger.debug('Legacy plugin path: {0}'.format(
             self.legacyPluginsPath
         ))
+
+    def launch(self, applicationIdentifier, context=None):
+        '''Launch application matching *applicationIdentifier*.
+
+        *context* should provide information that can guide how to launch the
+        application.
+
+        Return a dictionary of information containing:
+
+            success - A boolean value indicating whether application launched
+                      successfully or not.
+            message - Any additional information (such as a failure message).
+
+        '''
+        # Look up application.
+        applicationIdentifierPattern = applicationIdentifier
+        if applicationIdentifierPattern == 'hieroplayer':
+            applicationIdentifierPattern += '*'
+
+        application = self.applicationStore.getApplication(
+            applicationIdentifierPattern
+        )
+
+        if application is None:
+            return {
+                'success': False,
+                'message': (
+                    '{0} application not found.'
+                    .format(applicationIdentifier)
+                )
+            }
+
+        # Construct command and environment.
+        command = self._getApplicationLaunchCommand(application, context)
+        environment = self._getApplicationEnvironment(application, context)
+
+        # Environment must contain only strings.
+        self._conformEnvironment(environment)
+
+        success = True
+        message = '{0} application started.'.format(application['label'])
+
+        try:
+            options = dict(
+                env=environment,
+                close_fds=True
+            )
+
+            # Ensure that current working directory is set to the root of the
+            # application being launched to avoid issues with applications
+            # locating shared libraries etc.
+            applicationRootPath = os.path.dirname(application['path'])
+            options['cwd'] = applicationRootPath
+
+            # Ensure subprocess is detached so closing connect will not also
+            # close launched applications.
+            if sys.platform == 'win32':
+                options['creationflags'] = subprocess.CREATE_NEW_CONSOLE
+            else:
+                options['preexec_fn'] = os.setsid
+
+            self.logger.debug(
+                'Launching {0} with options {1}'.format(command, options)
+            )
+            process = subprocess.Popen(command, **options)
+            process.wait()
+
+        except (OSError, TypeError):
+            self.logger.exception(
+                '{0} application could not be started with command "{1}".'
+                .format(applicationIdentifier, command)
+            )
+
+            success = False
+            message = '{0} application could not be started.'.format(
+                application['label']
+            )
+
+        else:
+            self.logger.debug(
+                '{0} application started. (pid={1})'.format(
+                    applicationIdentifier, process.pid
+                )
+            )
+
+        return {
+            'success': success,
+            'message': message
+        }
 
     def _getApplicationEnvironment(self, application, context):
         '''Modify and return environment with legacy plugins added.'''
@@ -492,8 +601,8 @@ def register(registry, **kw):
     '''Register hooks for ftrack connect legacy plugins.'''
     applicationStore = LegacyApplicationStore()
 
-    path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                            'windows', 'v0.2.0', 'resource', 'legacy_plugins')
+    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+                        'legacy_plugins')
     launcher = LegacyApplicationLauncher(
         applicationStore,
         legacyPluginsPath=os.environ.get(
@@ -534,8 +643,8 @@ def main(arguments=None):
 
     applicationStore = LegacyApplicationStore()
 
-    path = os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                            'windows', 'v0.2.0', 'resource', 'legacy_plugins')
+    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+                        'legacy_plugins')
     launcher = LegacyApplicationLauncher(
         applicationStore,
         legacyPluginsPath=os.environ.get(
