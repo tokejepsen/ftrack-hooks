@@ -12,14 +12,15 @@ import argparse
 import threading
 import subprocess
 import time
-import utils
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+ftrack_connect_path = os.path.join(tools_path, 'ftrack',
+                                'ftrack-connect_package', 'windows', 'current')
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
 
-    sys.path.append(os.path.join(utils.GetFtrackConnectPath(), 'common.zip'))
+    sys.path.append(os.path.join(ftrack_connect_path, 'common.zip'))
 
 import ftrack
 import ftrack_connect.application

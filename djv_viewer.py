@@ -178,10 +178,9 @@ class DJVViewer(ftrack.Action):
                 version = ftrack.AssetVersion(item['entityId'])
 
             if asset:
-                for v in reversed(asset.getVersions()[:3]):
-                    for c in v.getComponents():
-                        if c.getName() not in components:
-                            components[c.getName()] = c.getId()
+                for c in asset.getVersions()[-1].getComponents():
+                    if c.getName() not in components:
+                        components[c.getName()] = c.getId()
 
             if version:
                 for c in version.getComponents():
@@ -211,10 +210,9 @@ class DJVViewer(ftrack.Action):
                     continue
 
             if asset:
-                for v in reversed(asset.getVersions()[:5]):
-                    for c in v.getComponents():
-                        if c.getName() not in components:
-                            components[c.getName()] = c.getId()
+                for c in asset.getVersions()[-1].getComponents():
+                    if c.getName() not in components:
+                        components[c.getName()] = c.getId()
 
             if version:
                 for c in version.getComponents():

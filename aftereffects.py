@@ -13,10 +13,10 @@ import shutil
 import threading
 import subprocess
 import time
-import utils
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-ftrack_connect_path = utils.GetFtrackConnectPath()
+ftrack_connect_path = os.path.join(tools_path, 'ftrack',
+                                'ftrack-connect_package', 'windows', 'current')
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
@@ -132,12 +132,12 @@ class LaunchApplicationAction(object):
 
     def discover(self, event):
         '''Return discovered applications.'''
-
+        """
         if not self.is_valid_selection(
             event['data'].get('selection', [])
         ):
             return
-
+        """
         items = []
         applications = self.application_store.applications
         applications = sorted(
@@ -327,7 +327,7 @@ class LaunchApplicationAction(object):
         applicationStore = ApplicationStore()
         applicationStore._modifyApplications(path)
 
-        path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+        path = os.path.join(ftrack_connect_path, 'resource',
                             'ftrack_connect_nuke')
         launcher = ApplicationLauncher(applicationStore,
                                     plugin_path=os.environ.get(
@@ -387,9 +387,9 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
 
         '''
         applications = []
-        launchArguments = []
+        launchArguments = ['-m']
         if path:
-            launchArguments = [path]
+            launchArguments.append(path)
 
         if sys.platform == 'win32':
             prefix = ['C:\\', 'Program Files.*']
@@ -577,7 +577,7 @@ def register(registry, **kw):
     # Create store containing applications.
     application_store = ApplicationStore()
 
-    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+    path = os.path.join(ftrack_connect_path, 'resource',
                         'ftrack_connect_nuke')
 
     launcher = ApplicationLauncher(application_store,
@@ -620,7 +620,7 @@ def main(arguments=None):
     # Create store containing applications.
     application_store = ApplicationStore()
 
-    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+    path = os.path.join(ftrack_connect_path, 'resource',
                         'ftrack_connect_nuke')
     launcher = ApplicationLauncher(application_store,
                                 plugin_path=os.environ.get(

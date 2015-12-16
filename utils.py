@@ -12,7 +12,7 @@ import ftrack
 
 def GetFtrackConnectPath():
     return os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
-                        'windows', 'v0.2.3')
+                        'windows', 'current')
 
 def GetStatusByName(entity, name):
     project = entity.getParents()[-1]

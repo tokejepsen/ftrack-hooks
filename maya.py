@@ -12,11 +12,11 @@ import traceback
 import threading
 import subprocess
 import time
-import utils
 
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-ftrack_connect_path = utils.GetFtrackConnectPath()
+ftrack_connect_path = os.path.join(tools_path, 'ftrack',
+                                'ftrack-connect_package', 'windows', 'current')
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
@@ -361,7 +361,7 @@ class LegacyApplicationStore(ftrack_connect.application.ApplicationStore):
                 launchArguments=launchArguments
             ))
 
-        self.logger.debug(
+        self.logger.info(
             'Discovered applications:\n{0}'.format(
                 pprint.pformat(applications)
             )
@@ -601,7 +601,7 @@ def register(registry, **kw):
     '''Register hooks for ftrack connect legacy plugins.'''
     applicationStore = LegacyApplicationStore()
 
-    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+    path = os.path.join(ftrack_connect_path, 'resource',
                         'legacy_plugins')
     launcher = LegacyApplicationLauncher(
         applicationStore,
@@ -643,7 +643,7 @@ def main(arguments=None):
 
     applicationStore = LegacyApplicationStore()
 
-    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+    path = os.path.join(ftrack_connect_path, 'resource',
                         'legacy_plugins')
     launcher = LegacyApplicationLauncher(
         applicationStore,

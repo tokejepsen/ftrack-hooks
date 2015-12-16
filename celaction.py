@@ -14,10 +14,10 @@ import _winreg
 import threading
 import subprocess
 import time
-import utils
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-ftrack_connect_path = utils.GetFtrackConnectPath()
+ftrack_connect_path = os.path.join(tools_path, 'ftrack',
+                                'ftrack-connect_package', 'windows', 'current')
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
@@ -283,7 +283,7 @@ class LaunchApplicationAction(object):
         applicationStore = ApplicationStore()
         applicationStore._modifyApplications(path)
 
-        path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+        path = os.path.join(ftrack_connect_path, 'resource',
                             'ftrack_connect_nuke')
         launcher = ApplicationLauncher(applicationStore,
                                     plugin_path=os.environ.get(
@@ -525,7 +525,7 @@ def register(registry, **kw):
     # Create store containing applications.
     application_store = ApplicationStore()
 
-    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+    path = os.path.join(ftrack_connect_path, 'resource',
                         'ftrack_connect_nuke')
     launcher = ApplicationLauncher(application_store,
                                 plugin_path=os.environ.get(
@@ -567,7 +567,7 @@ def main(arguments=None):
     # Create store containing applications.
     application_store = ApplicationStore()
 
-    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+    path = os.path.join(ftrack_connect_path, 'resource',
                         'ftrack_connect_nuke')
     launcher = ApplicationLauncher(application_store,
                                 plugin_path=os.environ.get(

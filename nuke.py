@@ -12,26 +12,35 @@ import traceback
 import subprocess
 import time
 import threading
-import utils
 
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-ftrack_connect_path = utils.GetFtrackConnectPath()
+ftrack_connect_path = os.path.join(tools_path, 'ftrack',
+                                'ftrack-connect_package', 'windows', 'current')
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
     sys.path.append(os.path.join(ftrack_connect_path, 'common.zip'))
     os.environ['PYTHONPATH'] = os.path.join(ftrack_connect_path, 'common.zip')
 
-    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish',
-                                                    'pyblish-win', 'pythonpath')
+    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish', 'pyblish')
+    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish', 'pyblish-hiero')
+    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish', 'pyblish-integration')
+    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish', 'pyblish-nuke')
+    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish', 'pyblish-qml')
+    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish', 'pyblish-rpc')
+    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish', 'python-qt5')
 
     os.environ['NUKE_PATH'] = os.pathsep + os.path.join(tools_path, 'pyblish',
-                                                    'pyblish-win', 'lib',
-                                                    'pyblish-x', 'integrations',
-                                                    'nuke')
+                                    'pyblish-nuke', 'pyblish_nuke', 'nuke_path')
     os.environ['NUKE_PATH'] += os.pathsep + os.path.join(tools_path, 'ftrack',
                                                     'ftrack-tools')
+
+    os.environ['HIERO_PLUGIN_PATH'] = os.path.join(tools_path, 'pyblish',
+                                                    'pyblish-hiero', 'pyblish_hiero', 'hiero_plugin_path')
+
+    os.environ['PYBLISHPLUGINPATH'] = ''
+    sys.path.append(r'C:\Users\toke.jepsen\Desktop\library')
 
 import ftrack
 import ftrack_connect.application
@@ -46,9 +55,7 @@ class ApplicationThread(threading.Thread):
         self.context = context
         self.task = task
 
-        self.logger = logging.getLogger(
-            __name__ + '.' + self.__class__.__name__
-        )
+        self.logger = logging.getLogger()
 
     def run(self):
 
@@ -81,9 +88,7 @@ class LaunchApplicationAction(object):
         '''
         super(LaunchApplicationAction, self).__init__()
 
-        self.logger = logging.getLogger(
-            __name__ + '.' + self.__class__.__name__
-        )
+        self.logger = logging.getLogger()
 
         self.application_store = application_store
         self.launcher = launcher
@@ -243,6 +248,15 @@ class LaunchApplicationAction(object):
             msg += " %s" % traceback.format_exc()
             self.logger.info(msg)
 
+        if not path:
+            try:
+                parent = task.getParent()
+                asset = parent.getAsset(parent.getName(), 'scene')
+                version = asset.getVersions()[-1]
+                path = version.getComponent(name='nuke').getFilesystemPath()
+            except:
+                self.logger.info(traceback.format_exc())
+
         self.logger.info('Found path: %s' % path)
 
         # adding application and task environment
@@ -251,23 +265,16 @@ class LaunchApplicationAction(object):
         tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         pyblish_path = os.path.join(tools_path, 'pyblish')
 
-        app_plugins = os.path.join(pyblish_path, 'pyblish-bumpybox',
+        data = os.environ['PYBLISHPLUGINPATH'].split(os.pathsep)
+
+        app_path = os.path.join(pyblish_path, 'pyblish-bumpybox',
                                     'pyblish_bumpybox', 'plugins', 'nuke')
         if 'hiero' in applicationIdentifier:
-            app_plugins = os.path.join(pyblish_path, 'pyblish-bumpybox',
-                                        'pyblish_bumpybox', 'plugins', 'hiero')
+            app_path = os.path.join(pyblish_path, 'pyblish-bumpybox',
+                                    'pyblish_bumpybox', 'plugins', 'hiero')
 
-        task_plugins = os.path.join(app_plugins,
-                                    task.getType().getName().lower())
-
-        data = [os.path.join(pyblish_path, 'pyblish-ftrack',
-                'pyblish_ftrack','plugins')]
-        data.append(os.path.join(pyblish_path, 'pyblish-deadline',
-                'pyblish_deadline','plugins'))
-        data.append(os.path.join(pyblish_path, 'pyblish-bumpybox',
-                'pyblish_bumpybox','plugins'))
-        data.append(app_plugins)
-        data.append(task_plugins)
+        data.append(app_path)
+        data.append(os.path.join(app_path, task.getType().getName().lower()))
 
         environment['PYBLISHPLUGINPATH'] = data
 
@@ -277,7 +284,7 @@ class LaunchApplicationAction(object):
         applicationStore = ApplicationStore()
         applicationStore._modifyApplications(path)
 
-        path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+        path = os.path.join(ftrack_connect_path, 'resource',
                             'ftrack_connect_nuke')
         launcher = ApplicationLauncher(applicationStore,
                                     plugin_path=os.environ.get(
@@ -443,6 +450,7 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
                 'Launching {0} with options {1}'.format(command, options)
             )
             process = subprocess.Popen(command, **options)
+            # waiting on the process to terminate to inform time tracking
             process.wait()
 
         except (OSError, TypeError):
@@ -523,6 +531,20 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
             self.plugin_path, 'FOUNDRY_ASSET_PLUGIN_PATH', environment
         )
 
+        # Set the FTRACK_EVENT_PLUGIN_PATH to include the notification callback
+        # hooks.
+        environment = ftrack_connect.application.appendPath(
+            os.path.join(
+                self.plugin_path, 'crew_hook'
+            ), 'FTRACK_EVENT_PLUGIN_PATH', environment
+        )
+
+        environment = ftrack_connect.application.appendPath(
+            os.path.join(
+                self.plugin_path, '..', 'ftrack_python_api'
+            ), 'FTRACK_PYTHON_API_PLUGIN_PATH', environment
+        )
+
         environment['NUKE_USE_FNASSETAPI'] = '1'
 
         return environment
@@ -534,7 +556,7 @@ def register(registry, **kw):
     # Create store containing applications.
     application_store = ApplicationStore()
 
-    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+    path = os.path.join(ftrack_connect_path, 'resource',
                         'ftrack_connect_nuke')
     launcher = ApplicationLauncher(application_store,
                                 plugin_path=os.environ.get(
@@ -576,7 +598,7 @@ def main(arguments=None):
     # Create store containing applications.
     application_store = ApplicationStore()
 
-    path = os.path.join(utils.GetFtrackConnectPath(), 'resource',
+    path = os.path.join(ftrack_connect_path, 'resource',
                         'ftrack_connect_nuke')
     launcher = ApplicationLauncher(application_store,
                                 plugin_path=os.environ.get(
