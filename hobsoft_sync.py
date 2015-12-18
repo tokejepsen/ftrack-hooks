@@ -15,7 +15,7 @@ if __name__ == '__main__':
 import ftrack
 
 
-class FFMPEG_thread(threading.Thread):
+class thread(threading.Thread):
     def __init__(self, args, user):
         self.stdout = None
         self.stderr = None
@@ -32,7 +32,10 @@ class FFMPEG_thread(threading.Thread):
         job = ftrack.createJob('Syncing with HobSoft', 'running', self.user)
 
         try:
-            subprocess.call(self.args)
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+            subprocess.call(self.args, startupinfo=startupinfo)
         except:
             job.setStatus('failed')
 
@@ -98,32 +101,45 @@ class Action(ftrack.Action):
                 return {'success': False,
                         'message': 'Missing information.'}
 
+            msg = 'HobSoft sync launched.'
+            ftrack.EVENT_HUB.publishReply(event, data={'success': True,
+                                                       'message': msg})
+
             component = ftrack.Component(values['image_component'])
-
-            exe = os.path.join(tools_path, 'ffmpeg', 'bin', 'ffmpeg.exe')
-
             shot = component.getVersion().getParent().getParent()
             sequence_name = shot.getParent().getName()
             shot_name = 'c' + shot.getName().split('c')[1]
-            filename = '{0}{1}.{2}.%04d.jpg'.format(sequence_name, shot_name,
-                                                    values['cg_pass'])
-            dst = os.path.join('B:\\', 'film', sequence_name, shot_name,
-                               'current', values['cg_pass'], filename)
+            exe = os.path.join(tools_path, 'image-magick', 'convert.exe')
 
-            if not os.path.exists(os.path.dirname(dst)):
-                os.makedirs(os.path.dirname(dst))
+            directory = os.path.join('B:\\', 'film', sequence_name, shot_name,
+                                     'current', values['cg_pass'])
+            if not os.path.exists(directory):
+                os.makedirs(directory)
 
-            args = [exe, '-i', component.getFilesystemPath(), '-qscale:v',
-                    '31', dst]
+            for f in os.listdir(directory):
+                try:
+                    p = os.path.join(directory, f)
+                    os.remove(p)
+                except:
+                    self.logger.info(traceback.format_exc())
 
-            user = ftrack.User(id=event['source']['user']['id'])
-            thread = FFMPEG_thread(args, user)
-            thread.start()
+            directory = os.path.dirname(component.getFilesystemPath())
+            for f in os.listdir(directory):
+                number_string = f[-8:-4]
 
-            return {
-                'success': True,
-                'message': 'HobSoft sync launched.'
-            }
+                filename = '{0}{1}_{2}.{3}.jpg'.format(sequence_name,
+                                                       shot_name,
+                                                       values['cg_pass'],
+                                                       number_string)
+                dst = os.path.join('B:\\', 'film', sequence_name, shot_name,
+                                   'current', values['cg_pass'], filename)
+                src = os.path.join(directory, f)
+
+                args = [exe, src, '-flatten', '-quality', '50', dst]
+
+                user = ftrack.User(id=event['source']['user']['id'])
+                t = thread(args, user)
+                t.start()
 
         # finding image components on versions
         components = {}
