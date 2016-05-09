@@ -16,12 +16,16 @@ import ftrack
 
 
 class thread(threading.Thread):
-    def __init__(self, args, user):
+    def __init__(self, exe, user, directory, sequence_name, shot_name, values):
         self.stdout = None
         self.stderr = None
         threading.Thread.__init__(self)
-        self.args = args
+        self.exe = exe
         self.user = user
+        self.directory = directory
+        self.sequence_name = sequence_name
+        self.shot_name = shot_name
+        self.values = values
 
         self.logger = logging.getLogger(
             __name__ + '.' + self.__class__.__name__
@@ -35,7 +39,21 @@ class thread(threading.Thread):
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-            subprocess.call(self.args, startupinfo=startupinfo)
+            for f in os.listdir(self.directory):
+                number_string = f[-8:-4]
+
+                filename = '{0}{1}_{2}.{3}.jpg'.format(self.sequence_name,
+                                                       self.shot_name,
+                                                       self.values['cg_pass'],
+                                                       number_string)
+                dst = os.path.join('B:\\', 'film', self.sequence_name,
+                                   self.shot_name, 'current',
+                                   self.values['cg_pass'], filename)
+                src = os.path.join(self.directory, f)
+
+                args = [self.exe, src, '-flatten', '-quality', '50', dst]
+
+                subprocess.call(args, startupinfo=startupinfo)
         except:
             job.setStatus('failed')
 
@@ -124,22 +142,10 @@ class Action(ftrack.Action):
                     self.logger.info(traceback.format_exc())
 
             directory = os.path.dirname(component.getFilesystemPath())
-            for f in os.listdir(directory):
-                number_string = f[-8:-4]
 
-                filename = '{0}{1}_{2}.{3}.jpg'.format(sequence_name,
-                                                       shot_name,
-                                                       values['cg_pass'],
-                                                       number_string)
-                dst = os.path.join('B:\\', 'film', sequence_name, shot_name,
-                                   'current', values['cg_pass'], filename)
-                src = os.path.join(directory, f)
-
-                args = [exe, src, '-flatten', '-quality', '50', dst]
-
-                user = ftrack.User(id=event['source']['user']['id'])
-                t = thread(args, user)
-                t.start()
+            user = ftrack.User(id=event['source']['user']['id'])
+            t = thread(exe, user, directory, sequence_name, shot_name, values)
+            t.start()
 
         # finding image components on versions
         components = {}

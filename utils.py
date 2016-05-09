@@ -1,6 +1,4 @@
 import os
-import tempfile
-import subprocess
 import operator
 import sys
 
@@ -14,6 +12,7 @@ def GetFtrackConnectPath():
     return os.path.join(tools_path, 'ftrack', 'ftrack-connect-package',
                         'windows', 'current')
 
+
 def GetStatusByName(entity, name):
     project = entity.getParents()[-1]
     statuses = project.getTaskStatuses()
@@ -24,6 +23,7 @@ def GetStatusByName(entity, name):
             result = s
 
     return result
+
 
 def GetNextTask(task):
     shot = task.getParent()
@@ -60,6 +60,7 @@ def GetNextTask(task):
 
     return next_task
 
+
 def getLatestVersion(versions):
     latestVersion = None
     if len(versions) > 0:
@@ -69,6 +70,7 @@ def getLatestVersion(versions):
                 versionNumber = item.getVersion()
                 latestVersion = item
     return latestVersion
+
 
 def getShots(entity):
     result = []
@@ -94,92 +96,6 @@ def getShots(entity):
 
     return result
 
-def submitQT(version):
-    component = version.getComponent('main')
-    filePath = component.getFile()
-    settingsPath = r'K:\ftrack\ftrack.git\quicktime_export_settings.xml'
-    settingsPath =settingsPath.replace('\\', '/')
-
-    #frames
-    versionPath = os.path.dirname(filePath)
-    files = os.listdir(versionPath)
-    files = sorted(files, key = lambda x: x.split('_')[-1].split('.')[0])
-    firstFrame = files[0].split('_')[-1].split('.')[0]
-    lastFrame = files[-1].split('_')[-1].split('.')[0]
-
-    #outputdir
-    outputDir = os.path.dirname(os.path.dirname(filePath))
-
-    #outputfilename
-    outputFilename = os.path.basename(filePath)
-    outputFilename = '_'.join(outputFilename.split('_')[0:-1]) + '.mov'
-
-    #inputimages
-    inputimages = os.path.join(versionPath, files[0])
-
-    #outputfile
-    outputfile = os.path.join(outputDir, outputFilename).replace('\\', '/')
-
-    #audiofile
-    pathList = os.path.dirname(filePath.replace('/', '\\')).split(os.sep)
-    pathList[2] = 'episodes'
-    pathList.insert(1, os.sep)
-    path = os.path.join(*pathList)
-
-    pathList.insert(-2, 'audio')
-    pathList[-2] = '_'.join(outputFilename.split('_')[0:-1]) + '.wav'
-    filePath = os.path.join(*pathList[0:-1])
-
-    audiofile = None
-    if os.path.exists(filePath):
-        audiofile = filePath
-
-    #get temp directory
-    tempDir=tempfile.gettempdir()
-
-    #generate plugin file
-    jobData = 'Plugin=Quicktime\nPriority=50\nPool=medium\nChunkSize=100000\n'
-    jobData += 'Comment=Ftrack submit\n'
-    jobData += 'Name=%s\n' % outputFilename.replace('.mov', '')
-    jobData += 'Frames=%s-%s\n' % (int(firstFrame), int(lastFrame))
-    jobData += 'OutputFilename0=%s\n' % outputfile
-
-    jobFile=open((tempDir+'/job_info.job'),'w')
-    jobFile.write(jobData)
-    jobFile.close()
-    jobFile=(tempDir+'/job_info.job')
-    jobFile=jobFile.replace('\\','/')
-
-    #generate submit file
-    pluginData = 'FrameRate=25.0\nCodec=QuickTime Movie\n'
-    pluginData += 'InputImages=%s\n' % inputimages.replace('\\', '/')
-    pluginData += 'OutputFile=%s\n' % outputfile
-    if audiofile:
-        pluginData += 'AudioFile=%s\n' % audiofile.replace('\\', '/')
-
-    pluginFile=open((tempDir+'/plugin_info.job'),'w')
-    pluginFile.write(pluginData)
-    pluginFile.close()
-    pluginFile=(tempDir+'/plugin_info.job')
-    pluginFile=pluginFile.replace('\\','/')
-
-    #submitting to Deadline
-    deadlineCommand = 'C:/Program Files/Thinkbox/Deadline6/bin/deadlinecommand.exe'
-
-    if not os.path.exists(path):
-        deadlineCommand = 'C:/Program Files/Thinkbox/Deadline7/bin/deadlinecommand.exe'
-
-    result =  subprocess.Popen((deadlineCommand,jobFile,pluginFile,settingsPath),
-                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT,shell=False)
-
-    #create movie if none exists, or delete old and create new
-    try:
-        version.createComponent(name='movie', path=outputfile)
-    except:
-        movComponent = version.getComponent(name='movie')
-        movComponent.delete()
-        version.createComponent(name='movie', path=outputfile)
 
 def getThumbnailRecursive(task):
     if task.get('thumbid'):
@@ -188,6 +104,7 @@ def getThumbnailRecursive(task):
     if not task.get('thumbid'):
         parent = ftrack.Task(id=task.get('parent_id'))
         return getThumbnailRecursive(parent)
+
 
 def getTasksRecursive(entity):
     result = []
@@ -209,27 +126,3 @@ def getTasksRecursive(entity):
             result.extend(getTasksRecursive(seq))
 
     return result
-
-def getGlobExpression(filename):
-
-    _kVersionRegex = "([/._]v)(\\d+)"
-    _kPaddedSequenceRegex = "%((\\d)*)(d)"
-
-    # Replace version indices
-    matches = [match for match in re.finditer(_kVersionRegex, filename, re.IGNORECASE)]
-    if len(matches) > 0:
-
-        # Obtain version index from the last version string, ignore the others
-        match = matches[-1]
-
-        # Replace sequence padding.
-        matches = [match for match in re.finditer(_kPaddedSequenceRegex, filename, re.IGNORECASE)]
-        if len(matches) > 0:
-          # Iterate through matches, if the version string equals versionIndex ("active one"), substitute
-          # NB: Reverse iteration guarantees safety of modifying filename by splitting at given positions (match.start() / end())
-          for match in matches:
-            pre = filename[:match.start() - 1] # -1 is to remove possibly leading '.' or similar before sequence padding
-            post = filename[match.end():]
-            filename = pre + "*" + post
-
-        return filename

@@ -35,9 +35,10 @@ WHILE loop
     tv_LayerInfo
     PARSE result layerDisplay layerPosition layerOpacity layerName layerType layerStart layerEnd layerPrelighttable layerPostlighttable layerSelection
     IF CMP(layerDisplay, ON)==1
-      pos = Find(layerName," ",1)
-      IF CMP(pos, 0)==0
-        tv_warn '"'layerName'" has a white space in. It wont be included in the publish'
+      whitespace_pos = Find(layerName," ",1)
+			and_pos = Find(layerName,"&",1)
+      IF CMP(whitespace_pos, 0)==0 || CMP(and_pos, 0)==0
+        tv_warn '"'layerName'" has a white space or & symbol in. It wont be included in the publish'
       ELSE
         args = args' --data layer'i' 'layerName
       END

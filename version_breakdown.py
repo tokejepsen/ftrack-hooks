@@ -4,6 +4,7 @@ import logging
 import os
 import getpass
 import tempfile
+import traceback
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
@@ -64,32 +65,73 @@ class Action(ftrack.Action):
         ftrack.EVENT_HUB.publishReply(event, data={'success': True,
                                                    'message': msg})
 
+        selection = event['data']['selection']
         temp_dir = tempfile.gettempdir()
         file_path = os.path.join(temp_dir, 'ftrack_version_breakdown.txt')
         with open(file_path, 'w') as f:
             output = ''
-            v = ftrack.AssetVersion('6dec6756-8f94-11e5-929c-42010af00048')
+            v = ftrack.AssetVersion(selection[0]['entityId'])
+            versions = v.getAsset().getVersions()
+            ids = []
+
+            data = {'None': {'name': 'Uncategorized', 'notes': [],
+                    'versions': []}}
+            for cate in ftrack.getNoteCategories():
+                data[cate.get('entityId')] = {'name': cate.get('name'),
+                                              'notes': [], 'versions': []}
+
+            for v in versions:
+                ids.append(v.getId())
+                for note in v.getNotes():
+                    if note.get('categoryid'):
+                        data[note.get('categoryid')]['notes'].append(note)
+                        data[note.get('categoryid')]['versions'].append(v)
+                    else:
+                        data['None']['versions'].append(v)
+                        data['None']['notes'].append(note)
+
             output += '/'.join([v.getParent().getParent().getName(),
-                                v.getParent().getName(),
-                                str(v.getVersion()).zfill(3)])
+                                v.getParent().getName()])
             output += ':\n'
             count = 0
             sessions = []
             project_id = v.getParents()[-1].getId()
             for session in ftrack.getReviewSessions(project_id):
                 for obj in session.getObjects():
-                    if obj.get('version_id') == v.getId():
+                    if obj.get('version_id') in ids:
                         count += 1
                         sessions.append(session.get('name'))
 
-            output += '\tSession Usage:\t{0}\n'.format(count)
-            output += '\tSessions:\t\t{0}\n'.format(list(set(sessions)))
+            output += '\tReview Session Usage:\t{0}\n'.format(count)
+            output += '\tReview Sessions:\t{0}\n'.format(list(set(sessions)))
+
+            output += '\tNotes:\n'
+
+            for entry in data:
+                output += '\t\t' + data[entry]['name'] + ':\n'
+                amount = len(data[entry]['notes'])
+                output += '\t\t\tNotes Amount:{0}\n'.format(amount)
+                output += '\t\t\tVersions '
+                amount = len(set(data[entry]['versions']))
+                output += 'Amount:{0}\n'.format(amount)
+
+                for note in data[entry]['notes']:
+                    index = data[entry]['notes'].index(note)
+                    version_string = data[entry]['versions'][index]
+                    version_string = version_string.getVersion()
+                    version_string = 'v' + str(version_string).zfill(3)
+                    output += '\t\t\t{0}:\n'.format(version_string)
+                    text = note.getText().replace('\n', ' ')
+                    output += '\t\t\t\t{0}\n'.format(text)
 
             f.write(output)
 
         user = ftrack.User(id=event['source']['user']['id'])
         job = ftrack.createJob('Breakdown', 'done', user)
-        job.createAttachment(file_path)
+        try:
+            job.createAttachment(file_path)
+        except:
+            self.logger.info(traceback.format_exc())
 
 
 def register(registry, **kw):
@@ -133,3 +175,60 @@ def main(arguments=None):
 
 if __name__ == '__main__':
     raise SystemExit(main(sys.argv[1:]))
+"""
+temp_dir = tempfile.gettempdir()
+file_path = os.path.join(temp_dir, 'ftrack_version_breakdown.txt')
+with open(file_path, 'w') as f:
+    output = ''
+    v = ftrack.AssetVersion('65a1878a-9db2-11e5-a083-42010af00048')
+    versions = v.getAsset().getVersions()
+    ids = []
+
+    data = {'None': {'name': 'Uncategorized', 'notes': [], 'versions': []}}
+    for cate in ftrack.getNoteCategories():
+        data[cate.get('entityId')] = {'name': cate.get('name'), 'notes': [],
+                                      'versions': []}
+
+    for v in versions:
+        ids.append(v.getId())
+        for note in v.getNotes():
+            if note.get('categoryid'):
+                data[note.get('categoryid')]['notes'].append(note)
+                data[note.get('categoryid')]['versions'].append(v)
+            else:
+                data['None']['versions'].append(v)
+                data['None']['notes'].append(note)
+
+    output += '/'.join([v.getParent().getParent().getName(),
+                        v.getParent().getName()])
+    output += ':\n'
+    count = 0
+    sessions = []
+    project_id = v.getParents()[-1].getId()
+    for session in ftrack.getReviewSessions(project_id):
+        for obj in session.getObjects():
+            if obj.get('version_id') in ids:
+                count += 1
+                sessions.append(session.get('name'))
+
+    output += '\tReview Session Usage:\t{0}\n'.format(count)
+    output += '\tReview Sessions:\t{0}\n'.format(list(set(sessions)))
+
+    output += '\tNotes:\n'
+
+    for entry in data:
+        output += '\t\t' + data[entry]['name'] + ':\n'
+        output += '\t\t\tNotes Amount:{0}\n'.format(len(data[entry]['notes']))
+        output += '\t\t\tVersions '
+        output += 'Amount:{0}\n'.format(len(set(data[entry]['versions'])))
+
+        for note in data[entry]['notes']:
+            index = data[entry]['notes'].index(note)
+            version_string = str(data[entry]['versions'][index].getVersion())
+            version_string = 'v' + version_string.zfill(3)
+            output += '\t\t\t{0}:\n'.format(version_string)
+            text = note.getText().replace('\n', ' ')
+            output += '\t\t\t\t{0}\n'.format(text)
+
+    f.write(output)
+"""
