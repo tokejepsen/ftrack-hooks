@@ -9,25 +9,43 @@ import re
 import os
 import argparse
 import traceback
-import shutil
 import _winreg
 import threading
 import subprocess
 import time
+import shutil
+import platform
 
 tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 ftrack_connect_path = os.path.join(tools_path, 'ftrack',
-                                'ftrack-connect_package', 'windows', 'current')
+                                   'ftrack-connect_package', 'windows',
+                                   'current')
 
 if __name__ == '__main__':
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
-    sys.path.append(os.path.join(ftrack_connect_path, 'common.zip'))
-    os.environ['PYTHONPATH'] = os.path.join(ftrack_connect_path, 'common.zip')
+    sys.path.append(os.path.join(r'C:\Users\toke.jepsen\Desktop\library'))
 
-    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish',
-                                                    'pyblish-win', 'pythonpath')
+    path = os.path.join(tools_path, 'pyblish', 'pyblish')
+    path += os.pathsep + os.path.join(tools_path, 'pyblish',
+                                      'pyblish-bumpybox')
+    path += os.pathsep + os.path.join(tools_path, 'pyblish',
+                                      'pyblish-ftrack')
+    path += os.pathsep + os.path.join(tools_path, 'pyblish',
+                                      'pyblish-deadline')
+    path += os.pathsep + os.path.join(tools_path, 'pyblish',
+                                      'pyblish-integration')
+    path += os.pathsep + os.path.join(tools_path, 'pyblish',
+                                      'pyblish-qml')
+    path += os.pathsep + os.path.join(tools_path, 'pyblish',
+                                      'pyblish-rpc')
+    path += os.pathsep + os.path.join(tools_path, 'pyblish',
+                                      'python-qt5')
+    path += os.pathsep + os.path.join(tools_path, 'ftrack',
+                                      'ftrack-hooks')
+    os.environ['PYTHONPATH'] = path
 
 import ftrack
+import ftrack_api
 import ftrack_connect.application
 
 
@@ -84,12 +102,46 @@ class LaunchApplicationAction(object):
         self.application_store = application_store
         self.launcher = launcher
 
+    def GetTaskFilename(self, task_id, ext):
+
+        session = ftrack_api.Session()
+        task = session.query('Task where id is "%s"' % task_id).one()
+        path = []
+        parents = task['link']
+        project = session.query('Project where id is "%s"' % parents[0]['id'])
+
+        disk = project.one()['disk']['windows']
+        if platform.system().lower() != 'windows':
+            disk = project.one()['disk']['unix']
+        path.append(disk)
+
+        path.append(project.one()['root'])
+
+        root_folder = []
+        for p in parents[1:]:
+            tc = session.query('TypedContext where id is "%s"' % p['id']).one()
+            path.append(tc['name'].lower())
+
+            if tc['object_type']['name'] == 'Episode':
+                root_folder.append('episodes')
+            if tc['object_type']['name'] == 'Sequence':
+                root_folder.append('sequences')
+            if tc['object_type']['name'] == 'Shot':
+                root_folder.append('shots')
+        root_folder.append('tasks')
+        path.insert(2, root_folder[0])
+
+        filename = [parents[-2]['name'], parents[-1]['name'], 'v001', ext]
+        path.append('.'.join(filename))
+
+        return os.path.join(*path).replace('\\', '/')
+
     # newer version pop-up
     def version_get(self, string, prefix, suffix = None):
         """Extract version information from filenames.  Code from Foundry's nukescripts.version_get()"""
 
         if string is None:
-           raise ValueError, "Empty version string - no match"
+            raise ValueError, "Empty version string - no match"
 
         regex = "[/_.]"+prefix+"\d+"
         matches = re.findall(regex, string, re.IGNORECASE)
@@ -159,10 +211,6 @@ class LaunchApplicationAction(object):
             'items': items
         }
 
-    def get_path(self, task):
-
-        pass
-
     def launch(self, event):
         '''Handle *event*.
 
@@ -184,7 +232,6 @@ class LaunchApplicationAction(object):
         context['source'] = event['source']
 
         task = ftrack.Task(event['data']['selection'][0]['entityId'])
-        type_name = task.getType().getName()
 
         # getting path to file
         path = ''
@@ -218,7 +265,6 @@ class LaunchApplicationAction(object):
             prefix = os.path.basename(current_path).split('v')[0]
             extension = os.path.splitext(current_path)[1]
             max_version = int(self.version_get(current_path, 'v')[1])
-            current_version = max_version
 
             # comparing against files in the same directory
             new_version = False
@@ -252,6 +298,20 @@ class LaunchApplicationAction(object):
 
             path = max([f for f in files], key=os.path.getctime)
             self.logger.info('Found path: %s' % path)
+        else:
+            self.logger.info('Copy default celaction file.')
+            src = os.path.join(os.path.dirname(__file__), 'celaction.scn')
+            dst = self.GetTaskFilename(task.getId(), 'scn')
+
+            # create folder if they don't exists
+            if not os.path.exists(os.path.dirname(dst)):
+                os.makedirs(os.path.dirname(dst))
+
+            # copy default celaction file if it doesn't exists
+            if not os.path.exists(dst):
+                shutil.copy(src, dst)
+
+            path = dst
 
         # adding application and task environment
         environment = {}
@@ -260,18 +320,18 @@ class LaunchApplicationAction(object):
         pyblish_path = os.path.join(tools_path, 'pyblish')
 
         app_plugins = os.path.join(pyblish_path, 'pyblish-bumpybox',
-                                    'pyblish_bumpybox', 'plugins',
-                                    applicationIdentifier.split('_')[0])
+                                   'pyblish_bumpybox', 'plugins',
+                                   applicationIdentifier.split('_')[0])
 
         task_plugins = os.path.join(app_plugins,
                                     task.getType().getName().lower())
 
         data = [os.path.join(pyblish_path, 'pyblish-ftrack',
-                'pyblish_ftrack','plugins')]
+                             'pyblish_ftrack', 'plugins')]
         data.append(os.path.join(pyblish_path, 'pyblish-deadline',
-                'pyblish_deadline','plugins'))
+                                 'pyblish_deadline', 'plugins'))
         data.append(os.path.join(pyblish_path, 'pyblish-bumpybox',
-                'pyblish_bumpybox','plugins'))
+                                 'pyblish_bumpybox', 'plugins'))
         data.append(app_plugins)
         data.append(task_plugins)
 
@@ -290,30 +350,27 @@ class LaunchApplicationAction(object):
                                     'FTRACK_CONNECT_NUKE_PLUGINS_PATH', path))
 
         # modify registry settings
-        hKey = _winreg.OpenKey (_winreg.HKEY_CURRENT_USER,
-                            r'Software\CelAction\CelAction2D\User Settings', 0,
-                                                        _winreg.KEY_ALL_ACCESS)
+        hKey = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER,
+                               r'Software\CelAction\CelAction2D\User Settings',
+                               0, _winreg.KEY_ALL_ACCESS)
 
-        pyblish_path = os.path.join(pyblish_path, 'pyblish-win', 'bin',
-                                                        'pyblish-standalone.bat')
+        pyblish_path = os.path.join(pyblish_path, 'pyblish_standalone.bat')
         _winreg.SetValueEx(hKey, 'SubmitAppTitle', 0, _winreg.REG_SZ,
-                                                                pyblish_path)
+                           pyblish_path)
 
-        parameters = ' -d scene *SCENE* -d chunk *CHUNK* -d start *START*'
+        parameters = ' --path *SCENE* -d chunk *CHUNK* -d start *START*'
         parameters += ' -d end *END* -d x *X* -d y *Y*'
         _winreg.SetValueEx(hKey, 'SubmitParametersTitle', 0,
-                                    _winreg.REG_SZ, parameters)
+                           _winreg.REG_SZ, parameters)
 
         myclass = ApplicationThread(launcher, applicationIdentifier, context,
-                                                                        task)
+                                    task)
         myclass.start()
 
+        msg = 'Launched %s!' % applicationIdentifier
         ftrack.EVENT_HUB.publishReply(event,
-            data={
-                'success': True,
-                'message': 'Launched %s!' % applicationIdentifier
-            }
-        )
+                                      data={'success': True,
+                                            'message': msg})
 
 
 class ApplicationStore(ftrack_connect.application.ApplicationStore):
@@ -430,7 +487,7 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
             else:
                 options['preexec_fn'] = os.setsid
 
-            self.logger.debug(
+            self.logger.info(
                 'Launching {0} with options {1}'.format(command, options)
             )
             process = subprocess.Popen(command, **options)
@@ -469,8 +526,6 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
         environment = super(
             ApplicationLauncher, self
         )._getApplicationEnvironment(application, context)
-
-        applicationIdentifier = application['identifier']
 
         for k in context['environment']:
             path = ''
@@ -518,7 +573,7 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
 
         return environment
 
-
+"""
 def register(registry, **kw):
     '''Register hooks.'''
 
@@ -534,7 +589,7 @@ def register(registry, **kw):
     # Create action and register to respond to discover and launch actions.
     action = LaunchApplicationAction(application_store, launcher)
     action.register()
-
+"""
 
 def main(arguments=None):
     '''Set up logging and register action.'''
