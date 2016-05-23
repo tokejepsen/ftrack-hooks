@@ -330,6 +330,13 @@ def discover(event):
 
 
 def register(registry, **kw):
+    # Validate that registry is the correct ftrack.Registry. If not,
+    # assume that register is being called with another purpose or from a
+    # new or incompatible API and return without doing anything.
+    if registry is not ftrack.EVENT_HANDLERS:
+        # Exit to avoid registering this plugin again.
+        return
+
     '''Register action.'''
     ftrack.EVENT_HUB.subscribe(
         'topic=ftrack.action.discover and source.user.username={0}'.format(

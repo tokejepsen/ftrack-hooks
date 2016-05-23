@@ -3,7 +3,6 @@ import argparse
 import logging
 import os
 import getpass
-import pprint
 
 if __name__ == '__main__':
     tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -89,7 +88,8 @@ class AssetDelete(ftrack.Action):
         shot = ftrack.Task(event['data']['selection'][0]['entityId'])
         for asset in shot.getAssets():
             if asset.getName():
-                data.append({'label': asset.getName(), 'value': asset.getId()})
+                name = '%s (%s)' % (asset.getName(), asset.getType().getName())
+                data.append({'label': name, 'value': asset.getId()})
             else:
                 data.append({'label': 'None', 'value': asset.getId()})
 
@@ -107,6 +107,13 @@ class AssetDelete(ftrack.Action):
 
 def register(registry, **kw):
     '''Register action. Called when used as an event plugin.'''
+    # Validate that registry is the correct ftrack.Registry. If not,
+    # assume that register is being called with another purpose or from a
+    # new or incompatible API and return without doing anything.
+    if registry is not ftrack.EVENT_HANDLERS:
+        # Exit to avoid registering this plugin again.
+        return
+
     logging.basicConfig(level=logging.INFO)
     action = AssetDelete()
     action.register()

@@ -196,6 +196,13 @@ class Action(ftrack.Action):
 
 def register(registry, **kw):
     '''Register action. Called when used as an event plugin.'''
+    # Validate that registry is the correct ftrack.Registry. If not,
+    # assume that register is being called with another purpose or from a
+    # new or incompatible API and return without doing anything.
+    if registry is not ftrack.EVENT_HANDLERS:
+        # Exit to avoid registering this plugin again.
+        return
+
     logging.basicConfig(level=logging.INFO)
     action = Action()
     action.register()

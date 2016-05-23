@@ -599,6 +599,13 @@ class LegacyApplicationLauncher(
 
 def register(registry, **kw):
     '''Register hooks for ftrack connect legacy plugins.'''
+    # Validate that registry is the correct ftrack.Registry. If not,
+    # assume that register is being called with another purpose or from a
+    # new or incompatible API and return without doing anything.
+    if registry is not ftrack.EVENT_HANDLERS:
+        # Exit to avoid registering this plugin again.
+        return
+
     applicationStore = LegacyApplicationStore()
 
     path = os.path.join(ftrack_connect_path, 'resource',
