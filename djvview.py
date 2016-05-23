@@ -6,13 +6,14 @@ import sys
 import pprint
 import os
 import getpass
-import _winreg
+import re
+from operator import itemgetter
 
 if __name__ == '__main__':
-    import zipimport
-
     tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
+
+    import zipimport
     ftrack_connect_path = os.path.join(tools_path, 'ftrack',
                                        'ftrack-connect-package', 'windows',
                                        'current')
@@ -24,11 +25,11 @@ import ftrack
 import ftrack_connect.application
 
 
-class CelActionAction(object):
-    '''Launch CelAction action.'''
+class DJVViewAction(object):
+    '''Launch DJVView action.'''
 
     # Unique action identifier.
-    identifier = 'celaction-launch-action'
+    identifier = 'djvview-launch-action'
 
     def __init__(self, applicationStore, launcher):
         '''Initialise action with *applicationStore* and *launcher*.
@@ -40,7 +41,7 @@ class CelActionAction(object):
         :class:`ftrack_connect.application.ApplicationLauncher`.
 
         '''
-        super(CelActionAction, self).__init__()
+        super(DJVViewAction, self).__init__()
 
         self.logger = logging.getLogger(
             __name__ + '.' + self.__class__.__name__
@@ -69,19 +70,28 @@ class CelActionAction(object):
             self.launch
         )
 
-    def is_valid_selection(self, selection):
-        '''Return true if the selection is valid.'''
-        if (
-            len(selection) != 1 or
-            selection[0]['entityType'] != 'task'
-        ):
+    def is_valid_selection(self, event):
+        selection = event['data'].get('selection', [])
+
+        # If selection contains more than one item return early since
+        # this action will only handle a single version.
+        entityType = selection[0]['entityType']
+        if len(selection) != 1 or entityType not in ['assetversion', 'task']:
             return False
 
-        entity = selection[0]
-        task = ftrack.Task(entity['entityId'])
+        if entityType == 'assetversion':
+            version = ftrack.AssetVersion(selection[0]['entityId'])
 
-        if task.getObjectType() != 'Task':
-            return False
+            # filter to image sequences and movies only
+            if version.getAsset().getType().getShort() not in ['img', 'mov']:
+                return False
+
+        if entityType == 'task':
+            task = ftrack.Task(selection[0]['entityId'])
+
+            # filter to tasks
+            if task.getObjectType() != 'Task':
+                return False
 
         return True
 
@@ -98,9 +108,7 @@ class CelActionAction(object):
                                     in store.
 
         '''
-        if not self.is_valid_selection(
-            event['data'].get('selection', [])
-        ):
+        if not self.is_valid_selection(event):
             return
 
         items = []
@@ -126,38 +134,50 @@ class CelActionAction(object):
         }
 
     def launch(self, event):
-        '''Callback method for CelAction action.'''
-        applicationIdentifier = (
-            event['data']['applicationIdentifier']
-        )
+        '''Callback method for DJVView action.'''
 
-        context = event['data'].copy()
+        # launching application
+        if 'values' in event['data']:
+            context = event['data'].copy()
+            applicationIdentifier = event['data']['applicationIdentifier']
 
-        # modify registry settings
-        hKey = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER,
-                               r'Software\CelAction\CelAction2D\User Settings',
-                               0, _winreg.KEY_ALL_ACCESS)
+            return self.launcher.launch(applicationIdentifier, context)
 
-        pyblish_path = os.path.dirname(os.path.dirname(__file__))
-        pyblish_path = os.path.join(os.path.dirname(pyblish_path), 'pyblish')
-        pyblish_path = os.path.join(pyblish_path, 'pyblish_standalone.bat')
-        _winreg.SetValueEx(hKey, 'SubmitAppTitle', 0, _winreg.REG_SZ,
-                           pyblish_path)
+        # finding components
+        data = []
+        for item in event['data'].get('selection', []):
+            selection = event['data']['selection']
+            entityType = selection[0]['entityType']
 
-        parameters = ' --path *SCENE* -d chunk *CHUNK* -d start *START*'
-        parameters += ' -d end *END* -d x *X* -d y *Y* -rh celaction'
-        _winreg.SetValueEx(hKey, 'SubmitParametersTitle', 0,
-                           _winreg.REG_SZ, parameters)
+            # get all components on version
+            if entityType == 'assetversion':
+                version = ftrack.AssetVersion(item['entityId'])
 
-        path = r'Software\CelAction\CelAction2D\User Settings\Dialogs'
-        path += r'\SubmitOutput'
-        _winreg.CreateKey(_winreg.HKEY_CURRENT_USER, path)
-        hKey = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, path, 0,
-                               _winreg.KEY_ALL_ACCESS)
-        _winreg.SetValueEx(hKey, 'SaveScene', 0,
-                           _winreg.REG_DWORD, 0)
+                if not version.get('ispublished'):
+                    version.publish()
 
-        return self.launcher.launch(applicationIdentifier, context)
+                for c in version.getComponents():
+                    data.append({'label': c.getName(), 'value': c.getId()})
+
+            # get all components on all valid versions
+            if entityType == 'task':
+                task = ftrack.Task(selection[0]['entityId'])
+
+                for asset in task.getAssets(assetTypes=['img', 'mov']):
+                    for version in asset.getVersions():
+                        for component in version.getComponents():
+                            label = 'v' + str(version.getVersion()).zfill(3)
+                            label += ' - ' + asset.getType().getName()
+                            label += ' - ' + component.getName()
+                            data.append({'label': label,
+                                         'value': component.getId()})
+
+                data = sorted(data, key=itemgetter('label'), reverse=True)
+
+        return {'items': [{'label': 'Component to view',
+                           'type': 'enumerator',
+                           'name': 'component',
+                           'data': data}]}
 
 
 class ApplicationStore(ftrack_connect.application.ApplicationStore):
@@ -167,20 +187,31 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
         '''Return a list of applications that can be launched from this host.
         '''
         applications = []
-        icon = 'https://pbs.twimg.com/profile_images/3741062735/'
-        icon += 'e0b8fce362e6b3ff7414f4cdfa1a4a75_400x400.png'
 
         if sys.platform == 'darwin':
             pass
 
         elif sys.platform == 'win32':
             applications.extend(self._searchFilesystem(
-                expression=['C:\\', 'Program Files*', 'CelAction',
-                            'CelAction2D.exe'],
-                label='CelAction',
-                applicationIdentifier='celaction',
-                icon=icon
+                expression=['C:\\', 'Program Files', 'djv-\d.+',
+                            'bin', 'djv_view.exe'],
+                label='DJVView {version}',
+                versionExpression=re.compile(r'(?P<version>\d+.\d+.\d+)'),
+                applicationIdentifier='djvview',
+                icon="http://a.fsdn.com/allura/p/djv/icon"
             ))
+
+        if not applications:
+            tools_path = os.path.dirname(os.path.dirname(__file__))
+            tools_path = os.path.dirname(tools_path)
+            path = os.path.join(tools_path, 'djv-viewer',
+                                'djv-1.1.0-Windows-64', 'bin', 'djv_view.exe')
+
+            applications = [{'description': None,
+                             'icon': "http://a.fsdn.com/allura/p/djv/icon",
+                             'identifier': 'djvview',
+                             'label': 'DJVView Network',
+                             'path': path}]
 
         self.logger.debug(
             'Discovered applications:\n{0}'.format(
@@ -210,7 +241,7 @@ def register(registry, **kw):
     )
 
     # Create action and register to respond to discover and launch actions.
-    action = CelActionAction(applicationStore, launcher)
+    action = DJVViewAction(applicationStore, launcher)
     action.register()
 
 
@@ -228,19 +259,15 @@ if __name__ == '__main__':
 
     # Create action and register to respond to discover and launch actions.
     ftrack.setup()
-    action = CelActionAction(applicationStore, launcher)
+    action = DJVViewAction(applicationStore, launcher)
     action.register()
 
     # dependent event listeners
     import app_launch_open_file
-    import app_launch_environment
+    reload(app_launch_open_file)
 
     ftrack.EVENT_HUB.subscribe(
         'topic=ftrack.connect.application.launch',
         app_launch_open_file.modify_application_launch)
-
-    ftrack.EVENT_HUB.subscribe(
-        'topic=ftrack.connect.application.launch',
-        app_launch_environment.modify_application_launch)
 
     ftrack.EVENT_HUB.wait()
