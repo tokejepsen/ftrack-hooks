@@ -48,10 +48,7 @@ class VersionAdd(ftrack.Action):
 
     def is_valid_selection(self, selection):
         '''Return true if the selection is valid.'''
-        if (
-            len(selection) != 1 or
-            selection[0]['entityType'] != 'task'
-        ):
+        if selection[0]['entityType'] != 'task':
             return False
 
         entity = selection[0]
@@ -83,17 +80,21 @@ class VersionAdd(ftrack.Action):
             msg = ''
 
             try:
-                values = event['data']['values']
-                task = ftrack.Task(event['data']['selection'][0]['entityId'])
-                parent = task.getParent()
-                asset = parent.createAsset(name=values['version_name'],
-                                           assetType=values['version_type'])
-                version = asset.createVersion(taskid=task.getId())
-                version.publish()
-                version.set('version', value=int(values['version_number']))
+                for item in event['data']['selection']:
+                    values = event['data']['values']
+                    task = ftrack.Task(item['entityId'])
+                    parent = task.getParent()
+                    version_name = values['version_name']
+                    version_type = values['version_type']
 
-                msg = 'Version %s ' % values['version_name']
-                msg += 'v%s created.' % values['version_number'].zfill(3)
+                    asset = parent.createAsset(name=version_name,
+                                               assetType=version_type)
+                    version = asset.createVersion(taskid=task.getId())
+                    version.publish()
+                    version.set('version', value=int(values['version_number']))
+
+                    msg = 'Version %s ' % values['version_name']
+                    msg += 'v%s created.' % values['version_number'].zfill(3)
             except Exception as e:
                 self.logger.error(traceback.format_exc())
                 success = False

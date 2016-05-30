@@ -67,7 +67,6 @@ class AssetDelete(ftrack.Action):
             }]
         }
 
-
     def launch(self, event):
         if 'values' in event['data']:
             # Do something with the values or return a new form.
@@ -75,6 +74,17 @@ class AssetDelete(ftrack.Action):
 
             success = True
             msg = 'Asset deleted.'
+
+            # deleting all assets
+            if values['asset'] == 'all':
+                shot = ftrack.Task(event['data']['selection'][0]['entityId'])
+                for asset in shot.getAssets():
+                    asset.delete()
+
+                return {
+                    'success': success,
+                    'message': 'All assets deleted.'
+                }
 
             asset = ftrack.Asset(values['asset'])
             asset.delete()
@@ -92,6 +102,9 @@ class AssetDelete(ftrack.Action):
                 data.append({'label': name, 'value': asset.getId()})
             else:
                 data.append({'label': 'None', 'value': asset.getId()})
+
+        if len(data) > 1:
+            data.append({'label': 'All', 'value': 'all'})
 
         return {
             'items': [

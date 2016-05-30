@@ -3,17 +3,19 @@ import os
 import sys
 import re
 import traceback
-import uuid
 import shutil
 
 logging.basicConfig()
 logger = logging.getLogger()
-
+tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 if __name__ == '__main__':
-    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
 
+sys.path.append(os.path.join(tools_path, 'pipeline-schema'))
+
 import ftrack
+import pipeline_schema
 
 
 def version_get(string, prefix, suffix=None):
@@ -109,15 +111,41 @@ def get_task_data(event):
 
     # creating inital scene for celaction
     if not path and app_id == 'celaction':
-        dst = os.path.join(os.path.expanduser("~"), str(uuid.uuid4()) + '.scn')
+        schema_data = pipeline_schema.get_data()
+        schema_data['extension'] = 'scn'
+        dst = pipeline_schema.get_path('temp_file', schema_data)
+
+        # celaction doesn't like forward slashes
+        dst = dst.replace('/', '\\')
+
+        if not os.path.exists(os.path.dirname(dst)):
+            os.makedirs(os.path.dirname(dst))
+
         src = os.path.join(os.path.dirname(__file__), 'celaction.scn')
 
         shutil.copy(src, dst)
+        logger.info(dst)
         data['command'].append(dst)
 
-    # opening component for djv view
+    # opening component for djv view and quicktime
     if not path and app_id in ['djvview', 'quicktime']:
         data = get_assetversion_data(event)
+
+    # opening all python path folder for atom
+    if app_id == 'atom':
+        paths = []
+        for path in os.environ['PYTHONPATH'].split(os.pathsep):
+            # skip non folders
+            if not os.path.isdir(path):
+                continue
+
+            # skip empty folders
+            if not os.listdir(path):
+                continue
+
+            paths.append(path)
+
+        data['command'].extend(paths)
 
     return data
 
@@ -183,7 +211,7 @@ def register(registry, **kw):
     )
 
 if __name__ == '__main__':
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     ftrack.setup()
 

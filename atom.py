@@ -6,31 +6,29 @@ import sys
 import pprint
 import os
 import getpass
-import _winreg
+import re
 
 if __name__ == '__main__':
+    import zipimport
+
     tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
-
     ftrack_connect_path = os.path.join(tools_path, 'ftrack',
                                        'ftrack-connect-package', 'windows',
                                        'current')
     path = os.path.join(ftrack_connect_path, 'common.zip')
-    import zipimport
     importer = zipimport.zipimporter(path)
     ftrack_connect = importer.load_module('ftrack_connect')
-
-    sys.path.append(os.path.join(tools_path, 'pipeline-schema'))
 
 import ftrack
 import ftrack_connect.application
 
 
-class CelActionAction(object):
-    '''Launch CelAction action.'''
+class AtomAction(object):
+    '''Launch Atom action.'''
 
     # Unique action identifier.
-    identifier = 'celaction-launch-action'
+    identifier = 'atom-launch-action'
 
     def __init__(self, applicationStore, launcher):
         '''Initialise action with *applicationStore* and *launcher*.
@@ -42,7 +40,7 @@ class CelActionAction(object):
         :class:`ftrack_connect.application.ApplicationLauncher`.
 
         '''
-        super(CelActionAction, self).__init__()
+        super(AtomAction, self).__init__()
 
         self.logger = logging.getLogger(
             __name__ + '.' + self.__class__.__name__
@@ -71,22 +69,6 @@ class CelActionAction(object):
             self.launch
         )
 
-    def is_valid_selection(self, selection):
-        '''Return true if the selection is valid.'''
-        if (
-            len(selection) != 1 or
-            selection[0]['entityType'] != 'task'
-        ):
-            return False
-
-        entity = selection[0]
-        task = ftrack.Task(entity['entityId'])
-
-        if task.getObjectType() != 'Task':
-            return False
-
-        return True
-
     def discover(self, event):
         '''Return available actions based on *event*.
 
@@ -100,10 +82,6 @@ class CelActionAction(object):
                                     in store.
 
         '''
-        if not self.is_valid_selection(
-            event['data'].get('selection', [])
-        ):
-            return
 
         items = []
         applications = self.applicationStore.applications
@@ -128,38 +106,12 @@ class CelActionAction(object):
         }
 
     def launch(self, event):
-        '''Callback method for CelAction action.'''
+        '''Callback method for Atom action.'''
         applicationIdentifier = (
             event['data']['applicationIdentifier']
         )
 
         context = event['data'].copy()
-
-        # modify registry settings
-        path = r'Software\CelAction\CelAction2D\User Settings'
-        _winreg.CreateKey(_winreg.HKEY_CURRENT_USER, path)
-        hKey = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER,
-                               r'Software\CelAction\CelAction2D\User Settings',
-                               0, _winreg.KEY_ALL_ACCESS)
-
-        pyblish_path = os.path.dirname(os.path.dirname(__file__))
-        pyblish_path = os.path.join(os.path.dirname(pyblish_path), 'pyblish')
-        pyblish_path = os.path.join(pyblish_path, 'pyblish_standalone.bat')
-        _winreg.SetValueEx(hKey, 'SubmitAppTitle', 0, _winreg.REG_SZ,
-                           pyblish_path)
-
-        parameters = ' --path "*SCENE*" -d chunk *CHUNK* -d start *START*'
-        parameters += ' -d end *END* -d x *X* -d y *Y* -rh celaction'
-        _winreg.SetValueEx(hKey, 'SubmitParametersTitle', 0,
-                           _winreg.REG_SZ, parameters)
-
-        path = r'Software\CelAction\CelAction2D\User Settings\Dialogs'
-        path += r'\SubmitOutput'
-        _winreg.CreateKey(_winreg.HKEY_CURRENT_USER, path)
-        hKey = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, path, 0,
-                               _winreg.KEY_ALL_ACCESS)
-        _winreg.SetValueEx(hKey, 'SaveScene', 0,
-                           _winreg.REG_DWORD, 0)
 
         return self.launcher.launch(applicationIdentifier, context)
 
@@ -171,18 +123,22 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
         '''Return a list of applications that can be launched from this host.
         '''
         applications = []
-        icon = 'https://pbs.twimg.com/profile_images/3741062735/'
-        icon += 'e0b8fce362e6b3ff7414f4cdfa1a4a75_400x400.png'
+        icon = 'https://raw.githubusercontent.com/atom/atom/master/resources/'
+        icon += 'app-icons/stable/png/1024.png'
 
         if sys.platform == 'darwin':
             pass
 
         elif sys.platform == 'win32':
+            path = os.getenv('LOCALAPPDATA').split('\\')
+            path[0] = path[0] + '\\'
+            path.extend(['atom', 'bin*', 'atom.cmd'])
+
             applications.extend(self._searchFilesystem(
-                expression=['C:\\', 'Program Files*', 'CelAction',
-                            'CelAction2D.exe'],
-                label='CelAction',
-                applicationIdentifier='celaction',
+                expression=path,
+                label='Atom',
+                versionExpression=re.compile(r'(?P<version>)'),
+                applicationIdentifier='atom',
                 icon=icon
             ))
 
@@ -214,7 +170,7 @@ def register(registry, **kw):
     )
 
     # Create action and register to respond to discover and launch actions.
-    action = CelActionAction(applicationStore, launcher)
+    action = AtomAction(applicationStore, launcher)
     action.register()
 
 
@@ -232,7 +188,7 @@ if __name__ == '__main__':
 
     # Create action and register to respond to discover and launch actions.
     ftrack.setup()
-    action = CelActionAction(applicationStore, launcher)
+    action = AtomAction(applicationStore, launcher)
     action.register()
 
     # dependent event listeners
