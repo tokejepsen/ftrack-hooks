@@ -45,8 +45,9 @@ def async(fn):
 @async
 def create_job(event):
 
-    job = ftrack.createJob('Collecting Assets', 'running',
+    job = ftrack.createJob('Collecting Assets', 'queued',
                            ftrack.User(id=event['source']['user']['id']))
+    job.setStatus('running')
     values = event['data']['values']
     errors = ''
     # collecting sources and destinations

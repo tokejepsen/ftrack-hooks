@@ -150,6 +150,7 @@ class CelActionAction(object):
 
         parameters = ' --path "*SCENE*" -d chunk *CHUNK* -d start *START*'
         parameters += ' -d end *END* -d x *X* -d y *Y* -rh celaction'
+        parameters += ' -d progpath "*PROGPATH*"'
         _winreg.SetValueEx(hKey, 'SubmitParametersTitle', 0,
                            _winreg.REG_SZ, parameters)
 

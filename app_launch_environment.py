@@ -58,6 +58,9 @@ def modify_application_launch(event):
 
     environment['PYBLISHPLUGINPATH'] = data
 
+    # adding ffmpeg to path
+    environment['PATH'] = [os.path.join(tools_path, 'ffmpeg', 'bin')]
+
     data = event['data']
     for variable in environment:
         for path in environment[variable]:

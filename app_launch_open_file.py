@@ -131,22 +131,6 @@ def get_task_data(event):
     if not path and app_id in ['djvview', 'quicktime']:
         data = get_assetversion_data(event)
 
-    # opening all python path folder for atom
-    if app_id == 'atom':
-        paths = []
-        for path in os.environ['PYTHONPATH'].split(os.pathsep):
-            # skip non folders
-            if not os.path.isdir(path):
-                continue
-
-            # skip empty folders
-            if not os.listdir(path):
-                continue
-
-            paths.append(path)
-
-        data['command'].extend(paths)
-
     return data
 
 

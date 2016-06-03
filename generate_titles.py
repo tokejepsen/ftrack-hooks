@@ -92,8 +92,9 @@ def generate_title(image_magick_dir, output_file, input_file, size,
 @async
 def create_job(event):
     values = event['data']['values']
-    job = ftrack.createJob('Generating Titles', 'running',
+    job = ftrack.createJob('Generating Titles', 'queued',
                            ftrack.User(id=event['source']['user']['id']))
+    job.setStatus('running')
 
     image_magick_dir = r'K:\development\tools\image-magick'
     errors = ''

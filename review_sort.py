@@ -3,7 +3,6 @@ import argparse
 import logging
 import os
 import getpass
-import pprint
 
 if __name__ == '__main__':
     tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -12,15 +11,14 @@ if __name__ == '__main__':
 import ftrack
 
 
-class ClientReviewSort(ftrack.Action):
+class ReviewSort(ftrack.Action):
     '''Custom action.'''
 
     #: Action identifier.
-    identifier = 'client_review.sort'
+    identifier = 'review.sort'
 
     #: Action label.
-    label = 'ClientReviewSort'
-
+    label = 'ReviewSort'
 
     def __init__(self):
         '''Initialise action handler.'''
@@ -55,7 +53,6 @@ class ClientReviewSort(ftrack.Action):
 
         return False
 
-
     def discover(self, event):
         '''Return action config if triggered on a single selection.'''
         data = event['data']
@@ -73,7 +70,6 @@ class ClientReviewSort(ftrack.Action):
                 'actionIdentifier': self.identifier,
             }]
         }
-
 
     def launch(self, event):
 
@@ -96,14 +92,21 @@ class ClientReviewSort(ftrack.Action):
 
         return {
             'success': True,
-            'message': 'Client Review sorted!'
+            'message': 'Review sorted!'
         }
 
 
 def register(registry, **kw):
+    # Validate that registry is the correct ftrack.Registry. If not,
+    # assume that register is being called with another purpose or from a
+    # new or incompatible API and return without doing anything.
+    if registry is not ftrack.EVENT_HANDLERS:
+        # Exit to avoid registering this plugin again.
+        return
+
     '''Register action. Called when used as an event plugin.'''
     logging.basicConfig(level=logging.INFO)
-    action = ClientReviewSort()
+    action = ReviewSort()
     action.register()
 
 
@@ -133,7 +136,7 @@ def main(arguments=None):
     logging.basicConfig(level=loggingLevels[namespace.verbosity])
 
     ftrack.setup()
-    action = ClientReviewSort()
+    action = ReviewSort()
     action.register()
 
     ftrack.EVENT_HUB.wait()
