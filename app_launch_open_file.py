@@ -37,7 +37,7 @@ def version_get(string, prefix, suffix=None):
 def get_task_data(event):
 
     data = event['data']
-    app_id = event['data']['application']['identifier']
+    app_id = event['data']['application']['identifier'].split('_')[0]
 
     # finding work files to open
     path = None

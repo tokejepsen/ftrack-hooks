@@ -71,11 +71,9 @@ def create_job(event):
 
             # copying sources to destinations
             if entity.getAsset().getType().getShort() == 'img':
-                filename = os.path.splitext(basename)[0]
+                dir_name = entity.getParent().getParent().getName()
                 asset_dir = os.path.join(values['collection_directory'],
-                                         filename)
-                asset_dir = asset_dir.replace(version_string, '')
-                asset_dir = re.sub(r'.%04d', '', asset_dir)
+                                         dir_name)
 
                 if os.path.exists(asset_dir):
                     # delete existing files

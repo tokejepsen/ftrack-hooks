@@ -29,41 +29,34 @@ def appendPath(path, key, environment):
 def modify_application_launch(event):
     '''Modify the application environment and start timer for the task.'''
 
-    environment = {}
-
-    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    pyblish_path = os.path.join(tools_path, 'pyblish')
     app_id = event['data']['application']['identifier']
 
+    # skipping all applications except for houdini
+    if not app_id.startswith('houdini'):
+        return
+
+    environment = {}
+    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    pyblish_path = os.path.join(tools_path, 'pyblish')
+
     # setup PYTHONPATH
-    environment['PYTHONPATH'] = [os.path.join(pyblish_path, 'pyblish-base'),
-                                 os.path.join(pyblish_path,
-                                              'pyblish-integration'),
-                                 os.path.join(pyblish_path, 'pyblish-qml'),
-                                 os.path.join(pyblish_path, 'pyblish-rpc'),
-                                 os.path.join(pyblish_path, 'python-qt5')]
+    environment['PYTHONPATH'] = [os.path.join(pyblish_path, 'pyblish-houdini')]
 
     # adding pyblish application and task environment
-    app_plugins = os.path.join(pyblish_path, 'pyblish-bumpybox',
-                               'pyblish_bumpybox', 'plugins',
+    env_vars = []
+    app_plugins = os.path.join(pyblish_path, 'pyblish-kredenc',
+                               'pyblish_kredenc', 'plugins',
                                app_id.split('_')[0])
+    env_vars.append(app_plugins)
 
-    task = ftrack.Task(event['data']['context']['selection'][0]['entityId'])
-    task_plugins = os.path.join(app_plugins, task.getType().getName().lower())
+    environment['PYBLISHPLUGINPATH'] = env_vars
 
-    data = [os.path.join(pyblish_path, 'pyblish-ftrack', 'pyblish_ftrack',
-                         'plugins')]
-    data.append(os.path.join(pyblish_path, 'pyblish-deadline',
-                             'pyblish_deadline', 'plugins'))
-    data.append(os.path.join(pyblish_path, 'pyblish-bumpybox',
-                             'pyblish_bumpybox', 'plugins'))
-    data.append(app_plugins)
-    data.append(task_plugins)
-
-    environment['PYBLISHPLUGINPATH'] = data
-
-    # adding ffmpeg to path
-    environment['PATH'] = [os.path.join(tools_path, 'ffmpeg', 'bin')]
+    # setup pyblish
+    environment['HOUDINI_PATH'] = [os.path.join(pyblish_path,
+                                                'pyblish-houdini',
+                                                'pyblish_houdini',
+                                                'houdini_path'),
+                                   '&']
 
     data = event['data']
     for variable in environment:
@@ -89,7 +82,7 @@ def register(registry, **kw):
     )
 
 if __name__ == '__main__':
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     ftrack.setup()
 
