@@ -49,12 +49,21 @@ def modify_application_launch(event):
                                app_id.split('_')[0])
     env_vars.append(app_plugins)
 
+    path = os.path.join(pyblish_path, 'pyblish-bumpybox', 'pyblish_bumpybox',
+                        'plugins', 'houdini', 'pipeline_specific')
+    env_vars.append(path)
+
     environment['PYBLISHPLUGINPATH'] = env_vars
 
     # setup pyblish
     environment['HOUDINI_PATH'] = [os.path.join(pyblish_path,
                                                 'pyblish-houdini',
                                                 'pyblish_houdini',
+                                                'houdini_path'),
+                                   os.path.join(pyblish_path,
+                                                'pyblish-bumpybox',
+                                                'pyblish_bumpybox',
+                                                'environment_variables',
                                                 'houdini_path'),
                                    '&']
 
