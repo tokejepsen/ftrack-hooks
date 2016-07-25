@@ -274,6 +274,8 @@ class LaunchApplicationAction(object):
                                     'pyblish_bumpybox', 'plugins', 'hiero')
 
         data.append(app_path)
+        data.append(os.path.join(pyblish_path, 'pyblish-deadline',
+                                 'pyblish_deadline', 'plugins'))
         data.append(os.path.join(app_path, task.getType().getName().lower()))
 
         environment['PYBLISHPLUGINPATH'] = data

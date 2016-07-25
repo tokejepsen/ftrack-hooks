@@ -296,6 +296,8 @@ class LaunchAction(object):
                                     task.getType().getName().lower())
 
         data.append(app_plugins)
+        data.append(os.path.join(pyblish_path, 'pyblish-deadline',
+                                 'pyblish_deadline', 'plugins'))
         data.append(task_plugins)
 
         environment['PYBLISHPLUGINPATH'] = data
