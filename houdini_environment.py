@@ -44,11 +44,6 @@ def modify_application_launch(event):
 
     # adding pyblish application and task environment
     env_vars = []
-    app_plugins = os.path.join(pyblish_path, 'pyblish-kredenc',
-                               'pyblish_kredenc', 'plugins',
-                               app_id.split('_')[0])
-    env_vars.append(app_plugins)
-
     path = os.path.join(pyblish_path, 'pyblish-bumpybox', 'pyblish_bumpybox',
                         'plugins', 'houdini', 'pipeline_specific')
     env_vars.append(path)
