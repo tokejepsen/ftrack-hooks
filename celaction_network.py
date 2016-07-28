@@ -7,6 +7,7 @@ import pprint
 import os
 import getpass
 import _winreg
+import re
 
 if __name__ == "__main__":
     tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -24,11 +25,11 @@ import ftrack
 import ftrack_connect.application
 
 
-class CelActionAction(object):
-    """Launch CelAction action."""
+class CelActionActionNetwork(object):
+    """Launch CelAction networked action."""
 
     # Unique action identifier.
-    identifier = "celaction-launch-action"
+    identifier = "celaction-network-launch-action"
 
     def __init__(self, applicationStore, launcher):
         """Initialise action with *applicationStore* and *launcher*.
@@ -40,7 +41,7 @@ class CelActionAction(object):
         :class:`ftrack_connect.application.ApplicationLauncher`.
 
         """
-        super(CelActionAction, self).__init__()
+        super(CelActionActionNetwork, self).__init__()
 
         self.logger = logging.getLogger(
             __name__ + "." + self.__class__.__name__
@@ -195,10 +196,12 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
 
         elif sys.platform == "win32":
             applications.extend(self._searchFilesystem(
-                expression=["C:\\", "Program Files*", "CelAction",
+                expression=["K:\\", "development", "tools", "celaction", "v*",
                             "CelAction2D.exe"],
-                label="CelAction",
-                applicationIdentifier="celaction",
+                versionExpression=re.compile(r'(?P<version>\d+.\d+)'),
+                label="CelAction Network",
+                variant='{version}',
+                applicationIdentifier="celaction_network_{version}",
                 icon=icon
             ))
 
@@ -230,7 +233,7 @@ def register(registry, **kw):
     )
 
     # Create action and register to respond to discover and launch actions.
-    action = CelActionAction(applicationStore, launcher)
+    action = CelActionActionNetwork(applicationStore, launcher)
     action.register()
 
 
@@ -248,7 +251,7 @@ if __name__ == "__main__":
 
     # Create action and register to respond to discover and launch actions.
     ftrack.setup()
-    action = CelActionAction(applicationStore, launcher)
+    action = CelActionActionNetwork(applicationStore, launcher)
     action.register()
 
     # dependent event listeners
