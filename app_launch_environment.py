@@ -5,15 +5,15 @@ import sys
 logging.basicConfig()
 logger = logging.getLogger()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
+    sys.path.append(os.path.join(tools_path, "ftrack", "ftrack-api"))
 
 import ftrack
 
 
 def appendPath(path, key, environment):
-    '''Append *path* to *key* in *environment*.'''
+    """Append *path* to *key* in *environment*."""
     try:
         environment[key] = (
             os.pathsep.join([
@@ -27,54 +27,59 @@ def appendPath(path, key, environment):
 
 
 def modify_application_launch(event):
-    '''Modify the application environment and start timer for the task.'''
+    """Modify the application environment and start timer for the task."""
 
     environment = {}
 
     tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    pyblish_path = os.path.join(tools_path, 'pyblish')
-    app_id = event['data']['application']['identifier']
+    pyblish_path = os.path.join(tools_path, "pyblish")
+    app_id = event["data"]["application"]["identifier"]
 
     # setup PYTHONPATH
-    environment['PYTHONPATH'] = [os.path.join(pyblish_path, 'pyblish-base'),
+    environment["PYTHONPATH"] = [os.path.join(pyblish_path, "pyblish-base"),
                                  os.path.join(pyblish_path,
-                                              'pyblish-integration'),
-                                 os.path.join(pyblish_path, 'pyblish-qml'),
-                                 os.path.join(pyblish_path, 'pyblish-rpc'),
-                                 os.path.join(pyblish_path, 'python-qt5')]
+                                              "pyblish-integration"),
+                                 os.path.join(pyblish_path, "pyblish-qml"),
+                                 os.path.join(pyblish_path, "pyblish-rpc"),
+                                 os.path.join(pyblish_path, "python-qt5")]
 
     # adding pyblish application and task environment
-    app_plugins = os.path.join(pyblish_path, 'pyblish-bumpybox',
-                               'pyblish_bumpybox', 'plugins',
-                               app_id.split('_')[0])
+    app_plugins = os.path.join(pyblish_path, "pyblish-bumpybox",
+                               "pyblish_bumpybox", "plugins",
+                               app_id.split("_")[0])
 
-    task = ftrack.Task(event['data']['context']['selection'][0]['entityId'])
+    pipeline_plugins = os.path.join(pyblish_path, "pyblish-bumpybox",
+                                    "pyblish_bumpybox", "plugins",
+                                    app_id.split("_")[0], "pipeline_specific")
+
+    task = ftrack.Task(event["data"]["context"]["selection"][0]["entityId"])
     task_plugins = os.path.join(app_plugins, task.getType().getName().lower())
 
-    data = [os.path.join(pyblish_path, 'pyblish-ftrack', 'pyblish_ftrack',
-                         'plugins')]
-    data.append(os.path.join(pyblish_path, 'pyblish-deadline',
-                             'pyblish_deadline', 'plugins'))
-    data.append(os.path.join(pyblish_path, 'pyblish-bumpybox',
-                             'pyblish_bumpybox', 'plugins'))
+    data = [os.path.join(pyblish_path, "pyblish-ftrack", "pyblish_ftrack",
+                         "plugins")]
+    data.append(os.path.join(pyblish_path, "pyblish-deadline",
+                             "pyblish_deadline", "plugins"))
+    data.append(os.path.join(pyblish_path, "pyblish-bumpybox",
+                             "pyblish_bumpybox", "plugins"))
     data.append(app_plugins)
+    data.append(pipeline_plugins)
     data.append(task_plugins)
 
-    environment['PYBLISHPLUGINPATH'] = data
+    environment["PYBLISHPLUGINPATH"] = data
 
     # adding ffmpeg to path
-    environment['PATH'] = [os.path.join(tools_path, 'ffmpeg', 'bin')]
+    environment["PATH"] = [os.path.join(tools_path, "ffmpeg", "bin")]
 
-    data = event['data']
+    data = event["data"]
     for variable in environment:
         for path in environment[variable]:
-            appendPath(path, variable, data['options']['env'])
+            appendPath(path, variable, data["options"]["env"])
 
     return data
 
 
 def register(registry, **kw):
-    '''Register location plugin.'''
+    """Register location plugin."""
 
     # Validate that registry is the correct ftrack.Registry. If not,
     # assume that register is being called with another purpose or from a
@@ -84,16 +89,16 @@ def register(registry, **kw):
         return
 
     ftrack.EVENT_HUB.subscribe(
-        'topic=ftrack.connect.application.launch',
+        "topic=ftrack.connect.application.launch",
         modify_application_launch
     )
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logger.setLevel(logging.DEBUG)
 
     ftrack.setup()
 
     ftrack.EVENT_HUB.subscribe(
-        'topic=ftrack.connect.application.launch',
+        "topic=ftrack.connect.application.launch",
         modify_application_launch)
     ftrack.EVENT_HUB.wait()
