@@ -10,7 +10,8 @@ import re
 from operator import itemgetter
 
 if __name__ == '__main__':
-    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    func = os.path.dirname
+    tools_path = func(func(func(func(func(__file__)))))
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
 
     import zipimport
@@ -202,8 +203,8 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
             ))
 
         if not applications:
-            tools_path = os.path.dirname(os.path.dirname(__file__))
-            tools_path = os.path.dirname(tools_path)
+            func = os.path.dirname
+            tools_path = func(func(func(func(func(__file__)))))
             path = os.path.join(tools_path, 'djv-viewer',
                                 'djv-1.1.0-Windows-64', 'bin', 'djv_view.exe')
 

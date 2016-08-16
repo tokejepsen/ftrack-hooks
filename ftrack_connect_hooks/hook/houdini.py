@@ -6,30 +6,31 @@ import sys
 import pprint
 import os
 import getpass
-import re
-from operator import itemgetter
 
 if __name__ == '__main__':
-    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    func = os.path.dirname
+    tools_path = func(func(func(func(func(__file__)))))
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
 
-    import zipimport
     ftrack_connect_path = os.path.join(tools_path, 'ftrack',
                                        'ftrack-connect-package', 'windows',
                                        'current')
     path = os.path.join(ftrack_connect_path, 'common.zip')
+    import zipimport
     importer = zipimport.zipimporter(path)
     ftrack_connect = importer.load_module('ftrack_connect')
+
+    sys.path.append(os.path.join(tools_path, 'pipeline-schema'))
 
 import ftrack
 import ftrack_connect.application
 
 
-class QuickTimeAction(object):
-    '''Launch QuickTime action.'''
+class HoudiniAction(object):
+    '''Launch Houdini action.'''
 
     # Unique action identifier.
-    identifier = 'quicktime-launch-action'
+    identifier = 'houdini-launch-action'
 
     def __init__(self, applicationStore, launcher):
         '''Initialise action with *applicationStore* and *launcher*.
@@ -41,7 +42,7 @@ class QuickTimeAction(object):
         :class:`ftrack_connect.application.ApplicationLauncher`.
 
         '''
-        super(QuickTimeAction, self).__init__()
+        super(HoudiniAction, self).__init__()
 
         self.logger = logging.getLogger(
             __name__ + '.' + self.__class__.__name__
@@ -70,28 +71,19 @@ class QuickTimeAction(object):
             self.launch
         )
 
-    def is_valid_selection(self, event):
-        selection = event['data'].get('selection', [])
-
-        # If selection contains more than one item return early since
-        # this action will only handle a single version.
-        entityType = selection[0]['entityType']
-        if len(selection) != 1 or entityType not in ['assetversion', 'task']:
+    def is_valid_selection(self, selection):
+        '''Return true if the selection is valid.'''
+        if (
+            len(selection) != 1 or
+            selection[0]['entityType'] != 'task'
+        ):
             return False
 
-        if entityType == 'assetversion':
-            version = ftrack.AssetVersion(selection[0]['entityId'])
+        entity = selection[0]
+        task = ftrack.Task(entity['entityId'])
 
-            # filter to image sequences and movies only
-            if version.getAsset().getType().getShort() != 'mov':
-                return False
-
-        if entityType == 'task':
-            task = ftrack.Task(selection[0]['entityId'])
-
-            # filter to tasks
-            if task.getObjectType() != 'Task':
-                return False
+        if task.getObjectType() != 'Task':
+            return False
 
         return True
 
@@ -108,7 +100,9 @@ class QuickTimeAction(object):
                                     in store.
 
         '''
-        if not self.is_valid_selection(event):
+        if not self.is_valid_selection(
+            event['data'].get('selection', [])
+        ):
             return
 
         items = []
@@ -134,71 +128,57 @@ class QuickTimeAction(object):
         }
 
     def launch(self, event):
-        '''Callback method for QuickTime action.'''
+        '''Callback method for Houdini action.'''
+        applicationIdentifier = (
+            event['data']['applicationIdentifier']
+        )
 
-        # launching application
-        if 'values' in event['data']:
-            context = event['data'].copy()
-            applicationIdentifier = event['data']['applicationIdentifier']
+        context = event['data'].copy()
 
-            return self.launcher.launch(applicationIdentifier, context)
-
-        # finding components
-        data = []
-        for item in event['data'].get('selection', []):
-            selection = event['data']['selection']
-            entityType = selection[0]['entityType']
-
-            # get all components on version
-            if entityType == 'assetversion':
-                version = ftrack.AssetVersion(item['entityId'])
-
-                if not version.get('ispublished'):
-                    version.publish()
-
-                for c in version.getComponents():
-                    data.append({'label': c.getName(), 'value': c.getId()})
-
-            # get all components on all valid versions
-            if entityType == 'task':
-                task = ftrack.Task(selection[0]['entityId'])
-
-                for asset in task.getAssets(assetTypes=['mov']):
-                    for version in asset.getVersions():
-                        for component in version.getComponents():
-                            label = 'v' + str(version.getVersion()).zfill(3)
-                            label += ' - ' + asset.getType().getName()
-                            label += ' - ' + component.getName()
-                            data.append({'label': label,
-                                         'value': component.getId()})
-
-                data = sorted(data, key=itemgetter('label'), reverse=True)
-
-        return {'items': [{'label': 'Component to view',
-                           'type': 'enumerator',
-                           'name': 'component',
-                           'data': data}]}
+        return self.launcher.launch(applicationIdentifier, context)
 
 
 class ApplicationStore(ftrack_connect.application.ApplicationStore):
-    '''Store used to find and keep track of available applications.'''
 
     def _discoverApplications(self):
         '''Return a list of applications that can be launched from this host.
+
+        An application should be of the form:
+
+            dict(
+                'identifier': 'name_version',
+                'label': 'Name version',
+                'path': 'Absolute path to the file',
+                'version': 'Version of the application',
+                'icon': 'URL or name of predefined icon'
+            )
+
         '''
         applications = []
-        icon = 'https://upload.wikimedia.org/wikipedia/fr/b/b6/'
-        icon += 'Logo_quicktime.png'
+        icon = 'http://cl.ly/image/3v2f3h2c0H3G/h_logo.png'
 
         if sys.platform == 'darwin':
-            pass
+            prefix = ['/', 'Applications']
+
+            applications.extend(self._searchFilesystem(
+                expression=prefix + [
+                    'Houdini*', 'Houdini.app'
+                ],
+                label='Houdini',
+                variant='{version}',
+                applicationIdentifier='houdini_{version}',
+                icon=icon
+            ))
 
         elif sys.platform == 'win32':
+            prefix = ['C:\\', 'Program Files.*']
+
             applications.extend(self._searchFilesystem(
-                expression=['C:\\', 'Program Files*', 'QuickTime',
-                            'QuickTimePlayer.exe'],
-                label='QuickTime',
-                applicationIdentifier='quicktime',
+                expression=prefix + ['Side Effects Software', 'Houdini*',
+                                     'bin', 'houdini.exe'],
+                label='Houdini',
+                variant='{version}',
+                applicationIdentifier='houdini_{version}',
                 icon=icon
             ))
 
@@ -230,7 +210,7 @@ def register(registry, **kw):
     )
 
     # Create action and register to respond to discover and launch actions.
-    action = QuickTimeAction(applicationStore, launcher)
+    action = HoudiniAction(applicationStore, launcher)
     action.register()
 
 
@@ -248,15 +228,24 @@ if __name__ == '__main__':
 
     # Create action and register to respond to discover and launch actions.
     ftrack.setup()
-    action = QuickTimeAction(applicationStore, launcher)
+    action = HoudiniAction(applicationStore, launcher)
     action.register()
 
     # dependent event listeners
     import app_launch_open_file
-    reload(app_launch_open_file)
+    import app_launch_environment
+    import houdini_environment
 
     ftrack.EVENT_HUB.subscribe(
         'topic=ftrack.connect.application.launch',
         app_launch_open_file.modify_application_launch)
+
+    ftrack.EVENT_HUB.subscribe(
+        'topic=ftrack.connect.application.launch',
+        app_launch_environment.modify_application_launch)
+
+    ftrack.EVENT_HUB.subscribe(
+        'topic=ftrack.connect.application.launch',
+        houdini_environment.modify_application_launch)
 
     ftrack.EVENT_HUB.wait()

@@ -9,7 +9,8 @@ import getpass
 import _winreg
 
 if __name__ == "__main__":
-    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    func = os.path.dirname
+    tools_path = func(func(func(func(func(__file__)))))
     sys.path.append(os.path.join(tools_path, "ftrack", "ftrack-api"))
 
     ftrack_connect_path = os.path.join(tools_path, "ftrack",
@@ -133,18 +134,18 @@ class CelActionAction(object):
 
         context = event["data"].copy()
 
-        # modify registry settings
+        func = os.path.dirname
+        tools_path = func(func(func(func(func(__file__)))))
+
+        # setting output parameters
         path = r"Software\CelAction\CelAction2D\User Settings"
         _winreg.CreateKey(_winreg.HKEY_CURRENT_USER, path)
         hKey = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER,
                                r"Software\CelAction\CelAction2D\User Settings",
                                0, _winreg.KEY_ALL_ACCESS)
 
-        pyblish_path = os.path.dirname(os.path.dirname(__file__))
-        pyblish_path = os.path.join(os.path.dirname(pyblish_path), "pyblish")
-        pyblish_path = os.path.join(pyblish_path, "pyblish_standalone.bat")
-        _winreg.SetValueEx(hKey, "SubmitAppTitle", 0, _winreg.REG_SZ,
-                           pyblish_path)
+        path = os.path.join(tools_path, "pyblish", "pyblish_standalone.bat")
+        _winreg.SetValueEx(hKey, "SubmitAppTitle", 0, _winreg.REG_SZ, path)
 
         parameters = " --path \"*SCENE*\" -d chunk *CHUNK* -d start *START*"
         parameters += " -d end *END* -d x *X* -d y *Y* -rh celaction"
@@ -152,6 +153,7 @@ class CelActionAction(object):
         _winreg.SetValueEx(hKey, "SubmitParametersTitle", 0, _winreg.REG_SZ,
                            parameters)
 
+        # setting resolution parameters
         path = r"Software\CelAction\CelAction2D\User Settings\Dialogs"
         path += r"\SubmitOutput"
         _winreg.CreateKey(_winreg.HKEY_CURRENT_USER, path)
@@ -161,6 +163,7 @@ class CelActionAction(object):
         _winreg.SetValueEx(hKey, "CustomX", 0, _winreg.REG_DWORD, 1920)
         _winreg.SetValueEx(hKey, "CustomY", 0, _winreg.REG_DWORD, 1080)
 
+        # making sure message dialogs don't appear when overwriting
         path = r"Software\CelAction\CelAction2D\User Settings\Messages"
         path += r"\OverwriteScene"
         _winreg.CreateKey(_winreg.HKEY_CURRENT_USER, path)

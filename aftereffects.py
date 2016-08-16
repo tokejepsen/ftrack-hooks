@@ -23,9 +23,6 @@ if __name__ == '__main__':
     sys.path.append(os.path.join(ftrack_connect_path, 'common.zip'))
     os.environ['PYTHONPATH'] = os.path.join(ftrack_connect_path, 'common.zip')
 
-    os.environ['PYTHONPATH'] += os.pathsep + os.path.join(tools_path, 'pyblish',
-                                                    'pyblish-win', 'pythonpath')
-
 import ftrack
 import ftrack_connect.application
 
@@ -345,8 +342,8 @@ class LaunchApplicationAction(object):
         with open(src, 'r') as f:
             for line in f.readlines():
                 if 'pyblish_path' in line:
-                    pyblish_path = os.path.join(pyblish_path, 'pyblish-win',
-                                                'bin', 'pyblish-standalone.bat')
+                    pyblish_path = os.path.join(pyblish_path,
+                                                'pyblish-standalone.bat')
                     pyblish_path = pyblish_path.replace('\\', '/')
                     data += line.format(pyblish_path=pyblish_path)
                 else:

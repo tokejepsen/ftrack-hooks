@@ -7,7 +7,8 @@ import shutil
 
 logging.basicConfig()
 logger = logging.getLogger()
-tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+func = os.path.dirname
+tools_path = func(func(func(func(func(__file__)))))
 if __name__ == '__main__':
 
     sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
@@ -38,6 +39,9 @@ def get_task_data(event):
 
     data = event['data']
     app_id = event['data']['application']['identifier'].split('_')[0]
+
+    if app_id == "nukex":
+        app_id = "nuke"
 
     # finding work files to open
     path = None
@@ -90,7 +94,7 @@ def get_task_data(event):
         else:
             path = current_path
     except:
-        msg = "Couldn't find any scene to launch:"
+        msg = "Couldn't publishes to launch:"
         msg += " %s" % traceback.format_exc()
         logger.info(msg)
 
@@ -108,6 +112,45 @@ def get_task_data(event):
         logger.info('Found path: %s' % file_path)
 
         data['command'].append(file_path)
+    else:
+        logger.info("Couldn't find any publishes, searching parent.")
+        try:
+            task = ftrack.Task(data['context']['selection'][0]['entityId'])
+
+            asset = task.getParent().getAssets(assetTypes=["scene"],
+                                               componentNames=[app_id])[0]
+            component = None
+            for v in asset.getVersions():
+                component = v.getComponent(name=app_id)
+            src = component.getFilesystemPath()
+
+            schema_data = pipeline_schema.get_data(task.getId())
+            schema_data['extension'] = os.path.splitext(src)[1][1:]
+            publish_dst = pipeline_schema.get_path('task_publish', schema_data)
+            work_dst = pipeline_schema.get_path('task_work', schema_data)
+
+            if not os.path.exists(os.path.dirname(publish_dst)):
+                os.makedirs(os.path.dirname(publish_dst))
+            shutil.copy(src, publish_dst)
+            if not os.path.exists(os.path.dirname(work_dst)):
+                os.makedirs(os.path.dirname(work_dst))
+            shutil.copy(src, work_dst)
+
+            task_asset = task.getParent().createAsset(task.getName(), "scene",
+                                                      task=task)
+            task_version = task_asset.createVersion(taskid=task.getId())
+            task_version.createComponent(name=app_id + "_publish",
+                                         path=publish_dst)
+            task_version.createComponent(name=app_id + "_work", path=work_dst)
+            task_version.publish()
+
+            logger.info("Created initial first version.")
+
+            data['command'].append(work_dst)
+        except:
+            msg = "Couldn't any publishes on parent:"
+            msg += " %s" % traceback.format_exc()
+            logger.info(msg)
 
     # creating inital scene for celaction
     if not path and app_id == 'celaction':
