@@ -136,6 +136,11 @@ class LaunchApplicationAction(object):
 
         context = event['data'].copy()
 
+        # Rewrite original selection to a playlist.
+        context['selection'] = self._createPlaylistFromSelection(
+            context['selection']
+        )
+
         return self.launcher.launch(applicationIdentifier, context)
 
 
