@@ -33,6 +33,10 @@ def modify_application_launch(event):
     app_id = event["data"]["application"]["label"].lower()
     app_version = event["data"]["application"]["version"]
 
+    # got no special nukex plugins, so nukex = nuke
+    if app_id == "nukex":
+        app_id = "nuke"
+
     # get arnold version
     dirs = os.listdir(os.path.join(maya_path, "arnold"))
     dirs.sort()
