@@ -195,15 +195,18 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
             pass
 
         elif sys.platform == "win32":
-            applications.extend(self._searchFilesystem(
-                expression=["K:\\", "development", "tools", "celaction", "v*",
-                            "CelAction2D.exe"],
-                versionExpression=re.compile(r'(?P<version>\d+.\d+)'),
-                label="CelAction Network",
-                variant='{version}',
-                applicationIdentifier="celaction_network_{version}",
-                icon=icon
-            ))
+            try:
+                applications.extend(self._searchFilesystem(
+                    expression=["K:\\", "development", "tools", "celaction",
+                                "v*", "CelAction2D.exe"],
+                    versionExpression=re.compile(r'(?P<version>\d+.\d+)'),
+                    label="CelAction Network",
+                    variant='{version}',
+                    applicationIdentifier="celaction_network_{version}",
+                    icon=icon
+                ))
+            except:
+                pass
 
         self.logger.debug(
             "Discovered applications:\n{0}".format(
