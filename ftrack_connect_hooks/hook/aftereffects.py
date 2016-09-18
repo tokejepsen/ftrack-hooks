@@ -113,6 +113,9 @@ class AfterEffectsAction(object):
                                     "Roaming", "Adobe", "After Effects",
                                     "13.5", "Scripts")
 
+        if not os.path.exists(scripts_path):
+            os.makedirs(scripts_path)
+
         src = os.path.join(os.path.dirname(__file__), "Publish.jsx")
         dst = os.path.join(scripts_path, "Publish.jsx")
 
