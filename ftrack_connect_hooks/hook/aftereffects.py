@@ -109,19 +109,21 @@ class AfterEffectsAction(object):
         context["source"] = event["source"]
 
         # update publishing script
-        scripts_path = os.path.join(os.path.expanduser("~"), "AppData",
-                                    "Roaming", "Adobe", "After Effects",
-                                    "13.5", "Scripts")
+        script_paths = []
+        root = os.path.join(os.path.expanduser("~"), "AppData",
+                            "Roaming", "Adobe", "After Effects")
+        for version in os.listdir(root):
+            path = os.path.join(root, version, "Scripts")
 
-        if not os.path.exists(scripts_path):
-            os.makedirs(scripts_path)
+            if not os.path.exists(path):
+                os.makedirs(path)
+
+            script_paths.append(os.path.join(path, "Publish.jsx"))
 
         src = os.path.join(os.path.dirname(__file__), "Publish.jsx")
-        dst = os.path.join(scripts_path, "Publish.jsx")
 
         func = os.path.dirname
         tools_path = func(func(func(func(func(__file__)))))
-
 
         data = ""
         with open(src, "r") as f:
@@ -134,8 +136,9 @@ class AfterEffectsAction(object):
                 else:
                     data += line
 
-        with open(dst, "w") as f:
-            f.write(data)
+        for dst in script_paths:
+            with open(dst, "w") as f:
+                f.write(data)
 
         return self.launcher.launch(applicationIdentifier, context)
 
@@ -214,6 +217,8 @@ def register(registry, **kw):
 if __name__ == "__main__":
     logging.basicConfig()
     logging.getLogger().setLevel(logging.INFO)
+
+    os.environ["LOGNAME"] = "toke.jepsen"
 
     # Create store containing applications.
     applicationStore = ApplicationStore()
