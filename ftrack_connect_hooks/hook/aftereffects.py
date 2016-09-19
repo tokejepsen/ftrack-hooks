@@ -123,13 +123,13 @@ class AfterEffectsAction(object):
         src = os.path.join(os.path.dirname(__file__), "Publish.jsx")
 
         func = os.path.dirname
-        tools_path = func(func(func(func(func(__file__)))))
+        repo_path = func(func(__file__))
 
         data = ""
         with open(src, "r") as f:
             for line in f.readlines():
                 if "pyblish_path" in line:
-                    pyblish_path = os.path.join(tools_path, "pyblish"
+                    pyblish_path = os.path.join(repo_path, "resources",
                                                 "pyblish-standalone.bat")
                     pyblish_path = pyblish_path.replace("\\", "/")
                     data += line.format(pyblish_path=pyblish_path)

@@ -37,10 +37,18 @@ def modify_application_launch(event):
     if app_id == "nukex":
         app_id = "nuke"
 
+    # special formatting for After Effects
+    if app_id.startswith("custom after effects"):
+        app_id = "aftereffects"
+
     # get arnold version
-    dirs = os.listdir(os.path.join(maya_path, "arnold"))
-    dirs.sort()
-    arnold_version = dirs[-1]
+    arnold_version = ""
+    try:
+        dirs = os.listdir(os.path.join(maya_path, "arnold"))
+        dirs.sort()
+        arnold_version = dirs[-1]
+    except:
+        pass
 
     # setup PYTHONPATH
     paths = []
@@ -98,6 +106,13 @@ def modify_application_launch(event):
     paths.append(os.path.join(pyblish_path, "pyblish-bumpybox",
                               "pyblish_bumpybox", "plugins",
                               app_id.split("_")[0], "pipeline_specific"))
+
+    import pyblish_bumpybox
+    repo_path = os.path.dirname(pyblish_bumpybox.__file__)
+    paths.append(os.path.join(repo_path, "plugins"))
+    paths.append(os.path.join(repo_path, "plugins", app_id.split("_")[0]))
+    paths.append(os.path.join(repo_path, "plugins", app_id.split("_")[0],
+                              "pipeline_specific"))
 
     # not all apps are task based
     try:
