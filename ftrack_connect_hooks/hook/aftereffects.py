@@ -6,9 +6,11 @@ import sys
 import pprint
 import logging
 import os
+import shutil
 
 import ftrack
 import ftrack_connect.application
+import pyblish_aftereffects
 
 
 class AfterEffectsAction(object):
@@ -120,25 +122,12 @@ class AfterEffectsAction(object):
 
             script_paths.append(os.path.join(path, "Publish.jsx"))
 
-        src = os.path.join(os.path.dirname(__file__), "Publish.jsx")
-
         func = os.path.dirname
-        repo_path = func(func(__file__))
-
-        data = ""
-        with open(src, "r") as f:
-            for line in f.readlines():
-                if "pyblish_path" in line:
-                    pyblish_path = os.path.join(repo_path, "resources",
-                                                "pyblish-standalone.bat")
-                    pyblish_path = pyblish_path.replace("\\", "/")
-                    data += line.format(pyblish_path=pyblish_path)
-                else:
-                    data += line
+        src = os.path.join(func(func(pyblish_aftereffects.__file__)),
+                           "script", "pyblish_aftereffects.jsx")
 
         for dst in script_paths:
-            with open(dst, "w") as f:
-                f.write(data)
+            shutil.copy(src, dst)
 
         return self.launcher.launch(applicationIdentifier, context)
 
