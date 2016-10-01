@@ -118,6 +118,10 @@ def modify_application_launch(event):
     repo_path = os.path.dirname(pyblish_ftrack.__file__)
     paths.append(os.path.join(repo_path, "plugins"))
 
+    import pyblish_deadline
+    repo_path = os.path.dirname(pyblish_deadline.__file__)
+    paths.append(os.path.join(repo_path, "plugins"))
+
     # not all apps are task based
     try:
         task_id = event["data"]["context"]["selection"][0]["entityId"]
