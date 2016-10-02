@@ -107,20 +107,23 @@ def modify_application_launch(event):
                               "pyblish_bumpybox", "plugins",
                               app_id.split("_")[0], "pipeline_specific"))
 
-    import pyblish_bumpybox
-    repo_path = os.path.dirname(pyblish_bumpybox.__file__)
-    paths.append(os.path.join(repo_path, "plugins"))
-    paths.append(os.path.join(repo_path, "plugins", app_id.split("_")[0]))
-    paths.append(os.path.join(repo_path, "plugins", app_id.split("_")[0],
-                              "pipeline_specific"))
+    try:
+        import pyblish_bumpybox
+        repo_path = os.path.dirname(pyblish_bumpybox.__file__)
+        paths.append(os.path.join(repo_path, "plugins"))
+        paths.append(os.path.join(repo_path, "plugins", app_id.split("_")[0]))
+        paths.append(os.path.join(repo_path, "plugins", app_id.split("_")[0],
+                                  "pipeline_specific"))
 
-    import pyblish_ftrack
-    repo_path = os.path.dirname(pyblish_ftrack.__file__)
-    paths.append(os.path.join(repo_path, "plugins"))
+        import pyblish_ftrack
+        repo_path = os.path.dirname(pyblish_ftrack.__file__)
+        paths.append(os.path.join(repo_path, "plugins"))
 
-    import pyblish_deadline
-    repo_path = os.path.dirname(pyblish_deadline.__file__)
-    paths.append(os.path.join(repo_path, "plugins"))
+        import pyblish_deadline
+        repo_path = os.path.dirname(pyblish_deadline.__file__)
+        paths.append(os.path.join(repo_path, "plugins"))
+    except:
+        pass
 
     # not all apps are task based
     try:
