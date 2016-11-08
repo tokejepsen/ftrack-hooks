@@ -1,22 +1,13 @@
 import logging
 import os
-import sys
 import re
 import traceback
 import shutil
 
+import ftrack
+
 logging.basicConfig()
 logger = logging.getLogger()
-func = os.path.dirname
-tools_path = func(func(func(func(func(__file__)))))
-if __name__ == '__main__':
-
-    sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
-
-sys.path.append(os.path.join(tools_path, 'pipeline-schema'))
-
-import ftrack
-import pipeline_schema
 
 
 def version_get(string, prefix, suffix=None):
@@ -58,6 +49,7 @@ def get_task_data(event):
         component_name = '%s_work' % app_id
 
         for v in reversed(asset.getVersions()):
+            # publish any missing versions
             if not v.get('ispublished'):
                 v.publish()
 
@@ -124,6 +116,7 @@ def get_task_data(event):
                 component = v.getComponent(name=app_id)
             src = component.getFilesystemPath()
 
+            import pipeline_schema
             schema_data = pipeline_schema.get_data(task.getId())
             schema_data['extension'] = os.path.splitext(src)[1][1:]
             publish_dst = pipeline_schema.get_path('task_publish', schema_data)
