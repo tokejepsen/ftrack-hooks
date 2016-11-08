@@ -4,23 +4,7 @@
 import logging
 import sys
 import pprint
-import os
 import getpass
-
-if __name__ == '__main__':
-    func = os.path.dirname
-    tools_path = func(func(func(func(func(__file__)))))
-    sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
-
-    ftrack_connect_path = os.path.join(tools_path, 'ftrack',
-                                       'ftrack-connect-package', 'windows',
-                                       'current')
-    path = os.path.join(ftrack_connect_path, 'common.zip')
-    import zipimport
-    importer = zipimport.zipimporter(path)
-    ftrack_connect = importer.load_module('ftrack_connect')
-
-    sys.path.append(os.path.join(tools_path, 'pipeline-schema'))
 
 import ftrack
 import ftrack_connect.application
@@ -234,7 +218,6 @@ if __name__ == '__main__':
     # dependent event listeners
     import app_launch_open_file
     import app_launch_environment
-    import houdini_environment
 
     ftrack.EVENT_HUB.subscribe(
         'topic=ftrack.connect.application.launch',
@@ -243,9 +226,5 @@ if __name__ == '__main__':
     ftrack.EVENT_HUB.subscribe(
         'topic=ftrack.connect.application.launch',
         app_launch_environment.modify_application_launch)
-
-    ftrack.EVENT_HUB.subscribe(
-        'topic=ftrack.connect.application.launch',
-        houdini_environment.modify_application_launch)
 
     ftrack.EVENT_HUB.wait()
