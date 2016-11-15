@@ -112,6 +112,7 @@ class AtomAction(object):
         )
 
         context = event['data'].copy()
+        context['source'] = event['source']
 
         return self.launcher.launch(applicationIdentifier, context)
 
