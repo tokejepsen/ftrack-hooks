@@ -1,5 +1,7 @@
 import logging
 import os
+import imp
+
 import ftrack
 
 logging.basicConfig()
@@ -18,6 +20,14 @@ def appendPath(path, key, environment):
         environment[key] = path
 
     return environment
+
+
+def get_module_path(module_name):
+    try:
+        return imp.find_module(module_name)[1]
+    except:
+        logger.error("Could not find module \"%s\"" % module_name)
+        return ""
 
 
 def modify_application_launch(event):
@@ -107,25 +117,20 @@ def modify_application_launch(event):
                               "pyblish_bumpybox", "plugins",
                               app_id.split("_")[0], "pipeline_specific"))
 
-    try:
-        import pyblish_bumpybox
-        repo_path = os.path.dirname(pyblish_bumpybox.__file__)
-        paths.append(os.path.join(repo_path, "plugins"))
-        paths.append(os.path.join(repo_path, "plugins", app_id.split("_")[0]))
-        paths.append(os.path.join(repo_path, "plugins", app_id.split("_")[0],
-                                  "pipeline_specific"))
+    repo_path = os.path.dirname(get_module_path("pyblish_bumpybox"))
+    paths.append(os.path.join(repo_path, "plugins"))
+    paths.append(os.path.join(repo_path, "plugins", app_id.split("_")[0]))
+    paths.append(os.path.join(repo_path, "plugins", app_id.split("_")[0],
+                              "pipeline_specific"))
 
-        import pyblish_ftrack
-        repo_path = os.path.dirname(pyblish_ftrack.__file__)
-        paths.append(os.path.join(repo_path, "plugins"))
+    repo_path = os.path.dirname(get_module_path("pyblish_ftrack"))
+    paths.append(os.path.join(repo_path, "plugins"))
 
-        import pyblish_deadline
-        repo_path = os.path.dirname(pyblish_deadline.__file__)
-        paths.append(os.path.join(repo_path, "plugins"))
-    except:
-        pass
+    repo_path = os.path.dirname(get_module_path("pyblish_deadline"))
+    paths.append(os.path.join(repo_path, "plugins"))
 
     # not all apps are task based
+    task = None
     try:
         task_id = event["data"]["context"]["selection"][0]["entityId"]
         task = ftrack.Task(task_id)
@@ -137,6 +142,10 @@ def modify_application_launch(event):
         pass
 
     environment["PYBLISHPLUGINPATH"] = paths
+
+    # FTRACK_TASKID
+    if task:
+        environment["FTRACK_TASKID"] = [task.getId()]
 
     # setup PATH
     paths = [os.path.join(tools_path, "ffmpeg", "bin")]
@@ -193,11 +202,15 @@ def modify_application_launch(event):
     environment["NUKE_PATH"] = paths
 
     # HOUDINI_PATH environment
-    paths = [os.path.join(pyblish_path, "pyblish-houdini", "pyblish_houdini",
-                          "houdini_path")]
-    paths.append(os.path.join(pyblish_path, "pyblish-bumpybox",
-                              "pyblish_bumpybox", "environment_variables",
-                              "houdini_path"))
+    paths = []
+
+    repo_path = os.path.dirname(get_module_path("pyblish_houdini"))
+    paths.append(os.path.join(repo_path, "pyblish_houdini", "houdini_path"))
+
+    repo_path = os.path.dirname(get_module_path("pyblish_bumpybox"))
+    paths.append(os.path.join(repo_path, "pyblish_bumpybox",
+                              "environment_variables", "houdini_path"))
+
     paths.append("&")
 
     environment["HOUDINI_PATH"] = paths
