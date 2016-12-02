@@ -13,11 +13,11 @@ def appendPath(path, key, environment):
     try:
         environment[key] = (
             os.pathsep.join([
-                environment[key], path
+                environment[key], path.replace("\\", "/")
             ])
         )
     except KeyError:
-        environment[key] = path
+        environment[key] = path.replace("\\", "/")
 
     return environment
 
