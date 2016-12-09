@@ -1,13 +1,7 @@
 import sys
 import argparse
 import logging
-import os
 import getpass
-import pprint
-
-if __name__ == '__main__':
-    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
 
 import ftrack
 
@@ -15,12 +9,9 @@ import ftrack
 class SetVersion(ftrack.Action):
     '''Custom action.'''
 
-    #: Action identifier.
     identifier = 'version.set'
 
-    #: Action label.
     label = 'SetVersion'
-
 
     def __init__(self):
         '''Initialise action handler.'''
@@ -45,24 +36,15 @@ class SetVersion(ftrack.Action):
             self.launch
         )
 
-    def validateSelection(self, selection):
-        '''Return true if the selection is valid.
-
-        '''
-
-        if selection:
-            return False
-
-        return False
-
-
     def discover(self, event):
         '''Return action config if triggered on a single selection.'''
         data = event['data']
 
-        # If selection contains more than one item return early since
-        # this action will only handle a single version.
         selection = data.get('selection', [])
+
+        if not selection:
+            return
+
         entityType = selection[0]['entityType']
         if len(selection) != 1 or entityType != 'assetversion':
             return
@@ -73,7 +55,6 @@ class SetVersion(ftrack.Action):
                 'actionIdentifier': self.identifier,
             }]
         }
-
 
     def launch(self, event):
         if 'values' in event['data']:

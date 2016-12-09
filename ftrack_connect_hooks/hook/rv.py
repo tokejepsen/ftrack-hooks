@@ -178,7 +178,7 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
                 launchArguments=["-flags", "ModeManagerPreload=ftrack"]
             ))
 
-        self.logger.info(
+        self.logger.debug(
             "Discovered applications:\n{0}".format(
                 pprint.pformat(applications)
             )

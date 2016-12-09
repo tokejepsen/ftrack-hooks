@@ -1,137 +1,128 @@
-# :coding: utf-8
-# :copyright: Copyright (c) 2015 Milan Kolar
-
 import sys
 import argparse
 import logging
 import os
 import getpass
-import pprint
-
-if __name__ == '__main__':
-    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
 
 import ftrack
 
 
 class ComponentAdd(ftrack.Action):
-    '''Custom action.'''
+    """Custom action."""
 
     #: Action identifier.
-    identifier = 'component.add'
+    identifier = "component.add"
 
     #: Action label.
-    label = 'ComponentAdd'
-
+    label = "ComponentAdd"
 
     def __init__(self):
-        '''Initialise action handler.'''
+        """Initialise action handler."""
         self.logger = logging.getLogger(
-            __name__ + '.' + self.__class__.__name__
+            __name__ + "." + self.__class__.__name__
         )
 
     def register(self):
-        '''Register action.'''
+        """Register action."""
         ftrack.EVENT_HUB.subscribe(
-            'topic=ftrack.action.discover and source.user.username={0}'.format(
+            "topic=ftrack.action.discover and source.user.username={0}".format(
                 getpass.getuser()
             ),
             self.discover
         )
 
         ftrack.EVENT_HUB.subscribe(
-            'topic=ftrack.action.launch and source.user.username={0} '
-            'and data.actionIdentifier={1}'.format(
+            "topic=ftrack.action.launch and source.user.username={0} "
+            "and data.actionIdentifier={1}".format(
                 getpass.getuser(), self.identifier
             ),
             self.launch
         )
 
     def validateSelection(self, selection):
-        '''Return true if the selection is valid.
+        """Return true if the selection is valid.
 
-        '''
+        """
 
         if selection:
             return False
 
         return False
 
-
     def discover(self, event):
-        '''Return action config if triggered on a single selection.'''
-        data = event['data']
+        """Return action config if triggered on a single selection."""
 
-        # If selection contains more than one item return early since
-        # this action will only handle a single version.
-        selection = data.get('selection', [])
-        entityType = selection[0]['entityType']
-        if len(selection) != 1 or entityType != 'assetversion':
+        selection = event["data"].get("selection", [])
+
+        if not selection:
+            return
+
+        entityType = selection[0]["entityType"]
+
+        if entityType != "assetversion":
             return
 
         return {
-            'items': [{
-                'label': self.label,
-                'actionIdentifier': self.identifier,
+            "items": [{
+                "label": self.label,
+                "actionIdentifier": self.identifier,
             }]
         }
 
-
     def launch(self, event):
-        if 'values' in event['data']:
+        if "values" in event["data"]:
             # Do something with the values or return a new form.
-            values = event['data']['values']
+            values = event["data"]["values"]
 
-            data = event['data']
-            selection = data.get('selection', [])
-            version = ftrack.AssetVersion(selection[0]['entityId'])
+            data = event["data"]
+            selection = data.get("selection", [])
+            version = ftrack.AssetVersion(selection[0]["entityId"])
 
-            if not values['component_name'] or not values['component_path']:
+            if not values["component_name"] or not values["component_path"]:
                 return {
-                    'success': False,
-                    'message': 'Missing input.'
+                    "success": False,
+                    "message": "Missing input."
                 }
 
-            if not os.path.exists(values['component_path']):
+            if not os.path.exists(values["component_path"]):
                 return {
-                    'success': False,
-                    'message': "Path doesn't exist."
+                    "success": False,
+                    "message": "Path doesn't exist."
                 }
 
             try:
-                version.createComponent(name=values['component_name'],
-                                        path=values['component_path'])
+                version.createComponent(name=values["component_name"],
+                                        path=values["component_path"])
                 version.publish()
             except:
                 return {
-                    'success': False,
-                    'message': "Component already exists."
+                    "success": False,
+                    "message": "Component already exists."
                 }
 
             return {
-                'success': True,
-                'message': 'Component Added'
+                "success": True,
+                "message": "Component Added"
             }
 
         return {
-            'items': [
+            "items": [
                 {
-                    'label': 'Component Name',
-                    'type': 'text',
-                    'name': 'component_name',
+                    "label": "Component Name",
+                    "type": "text",
+                    "name": "component_name",
                 },
                 {
-                    'label': 'Component Path',
-                    'type': 'text',
-                    'name': 'component_path',
+                    "label": "Component Path",
+                    "type": "text",
+                    "name": "component_path",
                 }
             ]
         }
 
 
 def register(registry, **kw):
-    '''Register action. Called when used as an event plugin.'''
+    """Register action. Called when used as an event plugin."""
     # Validate that registry is the correct ftrack.Registry. If not,
     # assume that register is being called with another purpose or from a
     # new or incompatible API and return without doing anything.
@@ -145,7 +136,7 @@ def register(registry, **kw):
 
 
 def main(arguments=None):
-    '''Set up logging and register action.'''
+    """Set up logging and register action."""
     if arguments is None:
         arguments = []
 
@@ -159,14 +150,14 @@ def main(arguments=None):
         loggingLevels[logging.getLevelName(level).lower()] = level
 
     parser.add_argument(
-        '-v', '--verbosity',
-        help='Set the logging output verbosity.',
+        "-v", "--verbosity",
+        help="Set the logging output verbosity.",
         choices=loggingLevels.keys(),
-        default='info'
+        default="info"
     )
     namespace = parser.parse_args(arguments)
 
-    '''Register action and listen for events.'''
+    """Register action and listen for events."""
     logging.basicConfig(level=loggingLevels[namespace.verbosity])
 
     ftrack.setup()
@@ -176,5 +167,5 @@ def main(arguments=None):
     ftrack.EVENT_HUB.wait()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
