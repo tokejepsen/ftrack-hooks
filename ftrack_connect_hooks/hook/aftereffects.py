@@ -10,7 +10,6 @@ import shutil
 
 import ftrack
 import ftrack_connect.application
-import pyblish_aftereffects
 
 
 class AfterEffectsAction(object):
@@ -122,6 +121,7 @@ class AfterEffectsAction(object):
 
             script_paths.append(os.path.join(path, "Publish.jsx"))
 
+        import pyblish_aftereffects
         func = os.path.dirname
         src = os.path.join(func(func(pyblish_aftereffects.__file__)),
                            "script", "pyblish_aftereffects.jsx")
@@ -171,7 +171,7 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
                 launchArguments=launchArguments
             ))
 
-        self.logger.info(
+        self.logger.debug(
             "Discovered applications:\n{0}".format(
                 pprint.pformat(applications)
             )
