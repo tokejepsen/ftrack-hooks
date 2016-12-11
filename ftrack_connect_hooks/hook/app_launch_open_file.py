@@ -215,7 +215,12 @@ def modify_application_launch(event):
     """Modify the application launch command with potential files to open"""
 
     data = event["data"]
-    entityType = event["data"]["context"]["selection"][0]["entityType"]
+    selection = event["data"]["context"]["selection"]
+
+    if not selection:
+        return
+
+    entityType = selection[0]["entityType"]
 
     # task based actions
     if entityType == "task":
