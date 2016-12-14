@@ -153,7 +153,10 @@ def get_task_data(event):
             )[0]
             component = None
             component = asset.getVersions()[-1].getComponent(name=app_id)
-            data["command"].append(component.getFilesystemPath())
+
+            path = component.getFilesystemPath()
+            if path:
+                data["command"].append(path)
         except:
             msg = "Couldn't find any publishes on the task: {0}"
             logger.info(msg.format(traceback.format_exc()))
