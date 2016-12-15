@@ -151,9 +151,7 @@ def get_task_data(event):
             asset = task.getParent().getAssets(
                 assetTypes=["scene"], componentNames=[app_id]
             )[0]
-            component = None
             component = asset.getVersions()[-1].getComponent(name=app_id)
-
             path = component.getFilesystemPath()
             if path:
                 data["command"].append(path)
