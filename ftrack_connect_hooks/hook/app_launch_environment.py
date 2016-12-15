@@ -36,7 +36,6 @@ def modify_application_launch(event):
     environment = {}
 
     app_id = event["data"]["application"]["label"].lower()
-    #app_version = event["data"]["application"]["version"]
 
     # Got Nukex = Nuke
     if app_id == "nukex":
@@ -45,14 +44,6 @@ def modify_application_launch(event):
     # Special formatting for After Effects
     if app_id.startswith("custom after effects"):
         app_id = "aftereffects"
-
-    # setup PYTHONPATH
-    paths = []
-
-    if app_id.startswith("celaction"):
-        paths.append(os.path.join(tools_path, "pyblish", "python-qt5"))
-
-    environment["PYTHONPATH"] = paths
 
     # setup PYBLISHPLUGINPATH
     paths = []
