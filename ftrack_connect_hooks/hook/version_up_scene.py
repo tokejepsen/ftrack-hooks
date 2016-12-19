@@ -2,7 +2,7 @@ import getpass
 import threading
 
 import ftrack
-from ftrack_locations import ftrack_template_disk
+import ftrack_locations
 
 
 def async(fn):
@@ -30,7 +30,7 @@ def create_job(event):
                 task=task
             )
 
-            location = ftrack_template_disk.get_old_location()
+            location = ftrack_locations.get_old_location()
             components = asset.getVersions()[-1].getComponents(
                 location=location
             )
