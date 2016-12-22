@@ -5,6 +5,7 @@ import logging
 import getpass
 import threading
 import traceback
+import shutil
 
 import ftrack
 import ftrack_template
@@ -24,7 +25,7 @@ def async(fn):
 @async
 def create_job(event):
 
-    job = ftrack.createJob("Collecting Assets", "queued",
+    job = ftrack.createJob("Create Structure", "queued",
                            ftrack.User(id=event["source"]["user"]["id"]))
     job.setStatus("running")
 
@@ -46,17 +47,20 @@ def create_job(event):
 
         templates = ftrack_template.discover_templates()
         valid_templates = ftrack_template.format(
-            {}, templates, entity=entity, return_mode="all"
+            {}, templates, entity, return_mode="all"
         )
 
+        print "Creating Directories/Files:"
         for path, template in valid_templates:
 
-            # Slight hacky way of determining whether a string is a directory
-            # or a file, since on Unix a file can have no extension.
-            if os.path.splitext(path)[1]:
+            if template.isfile:
                 if not os.path.exists(os.path.dirname(path)):
                     print os.path.dirname(path)
                     os.makedirs(os.path.dirname(path))
+
+                if not os.path.exists(path):
+                    print path
+                    shutil.copy(template.source, path)
             else:
                 if not os.path.exists(path):
                     print path
@@ -68,11 +72,11 @@ def create_job(event):
         job.setStatus("done")
 
 
-class CreateDirectories(ftrack.Action):
+class CreateStructure(ftrack.Action):
     """Custom action."""
 
-    identifier = "create.directories"
-    label = "Create Directories"
+    identifier = "create.structure"
+    label = "Create Structure"
 
     def __init__(self):
         """Initialise action handler."""
@@ -127,7 +131,7 @@ def register(registry, **kw):
         return
 
     logging.basicConfig(level=logging.INFO)
-    action = CreateDirectories()
+    action = CreateStructure()
     action.register()
 
 
@@ -157,7 +161,7 @@ def main(arguments=None):
     logging.basicConfig(level=loggingLevels[namespace.verbosity])
 
     ftrack.setup()
-    action = CreateDirectories()
+    action = CreateStructure()
     action.register()
 
     ftrack.EVENT_HUB.wait()
