@@ -2,7 +2,6 @@ import getpass
 import threading
 
 import ftrack
-import ftrack_locations
 
 
 def async(fn):
@@ -30,19 +29,7 @@ def create_job(event):
                 task=task
             )
 
-            location = ftrack_locations.get_old_location()
-            components = asset.getVersions()[-1].getComponents(
-                location=location
-            )
-            version = asset.createVersion(taskid=task.getId())
-
-            # Recreating all components on new version
-            for component in components:
-                version.createComponent(
-                    name=component.getName(),
-                    path=component.getFilesystemPath(),
-                    location=location
-                )
+            asset.createVersion(taskid=task.getId())
 
             asset.publish()
 
