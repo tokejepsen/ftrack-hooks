@@ -1,6 +1,3 @@
-# :coding: utf-8
-# :copyright: Copyright (c) 2015 ftrack
-
 import logging
 import sys
 import pprint
@@ -176,6 +173,29 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
         return applications
 
 
+class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
+    """Custom launcher to modify environment before launch."""
+
+    def __init__(self, application_store):
+        super(ApplicationLauncher, self).__init__(application_store)
+
+    def _getApplicationEnvironment(self, application, context=None):
+        """Override to modify environment before launch."""
+
+        # Make sure to call super to retrieve original environment
+        # which contains the selection and ftrack API.
+        environment = super(
+            ApplicationLauncher, self
+        )._getApplicationEnvironment(application, context)
+
+        entity = context["selection"][0]
+        task = ftrack.Task(entity["entityId"])
+
+        environment["FTRACK_TASKID"] = task.getId()
+
+        return environment
+
+
 def register(registry, **kw):
     """Register hooks."""
 
@@ -190,42 +210,8 @@ def register(registry, **kw):
     applicationStore = ApplicationStore()
 
     # Create a launcher with the store containing applications.
-    launcher = ftrack_connect.application.ApplicationLauncher(
-        applicationStore
-    )
+    launcher = ApplicationLauncher(applicationStore)
 
     # Create action and register to respond to discover and launch actions.
     action = HoudiniAction(applicationStore, launcher)
     action.register()
-
-
-if __name__ == "__main__":
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
-
-    # Create store containing applications.
-    applicationStore = ApplicationStore()
-
-    # Create a launcher with the store containing applications.
-    launcher = ftrack_connect.application.ApplicationLauncher(
-        applicationStore
-    )
-
-    # Create action and register to respond to discover and launch actions.
-    ftrack.setup()
-    action = HoudiniAction(applicationStore, launcher)
-    action.register()
-
-    # dependent event listeners
-    import app_launch_open_file
-    import app_launch_environment
-
-    ftrack.EVENT_HUB.subscribe(
-        "topic=ftrack.connect.application.launch",
-        app_launch_open_file.modify_application_launch)
-
-    ftrack.EVENT_HUB.subscribe(
-        "topic=ftrack.connect.application.launch",
-        app_launch_environment.modify_application_launch)
-
-    ftrack.EVENT_HUB.wait()
