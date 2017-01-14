@@ -52,6 +52,18 @@ def get_task_data(event):
             except:
                 pass
 
+    # Searching old Bait structure for work files
+    if not os.path.exists(work_file):
+        max_version = 0
+        for f in os.listdir(os.path.dirname(work_area)):
+            try:
+                version = version_get(f, "v")[1]
+                if version > max_version:
+                    max_version = version
+                    work_file = os.path.join(os.path.dirname(work_area), f)
+            except:
+                pass
+
     # If no work file exists, copy a default work file
     if not os.path.exists(work_file):
 
