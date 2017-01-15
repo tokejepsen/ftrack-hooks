@@ -53,7 +53,7 @@ def get_task_data(event):
                 pass
 
     # Searching old Bait structure for work files
-    if not os.path.exists(work_file):
+    if not os.path.exists(work_file) and os.path.exists(work_area):
         max_version = 0
         for f in os.listdir(os.path.dirname(work_area)):
             try:
