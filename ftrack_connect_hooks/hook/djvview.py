@@ -57,13 +57,6 @@ class DJVViewAction(object):
         if entityType not in ["assetversion", "task"]:
             return False
 
-        if entityType == "assetversion":
-            version = ftrack.AssetVersion(selection[0]["entityId"])
-
-            # filter to image sequences and movies only
-            if version.getAsset().getType().getShort() not in ["img", "mov"]:
-                return False
-
         if entityType == "task":
             task = ftrack.Task(selection[0]["entityId"])
 
@@ -114,48 +107,63 @@ class DJVViewAction(object):
     def launch(self, event):
         """Callback method for DJVView action."""
 
-        # launching application
+        # Launching application
         if "values" in event["data"]:
             context = event["data"].copy()
             applicationIdentifier = event["data"]["applicationIdentifier"]
 
             return self.launcher.launch(applicationIdentifier, context)
 
-        # finding components
-        data = []
+        # Collect all
+        data = {}
         for item in event["data"].get("selection", []):
-            selection = event["data"]["selection"]
-            entityType = selection[0]["entityType"]
 
-            # get all components on version
-            if entityType == "assetversion":
+            versions = []
+
+            if item["entityType"] == "assetversion":
                 version = ftrack.AssetVersion(item["entityId"])
+                if version.getAsset().getType().getShort() in ["img", "mov"]:
+                    versions.append(version)
 
-                if not version.get("ispublished"):
-                    version.publish()
-
-                for c in version.getComponents():
-                    data.append({"label": c.getName(), "value": c.getId()})
-
-            # get all components on all valid versions
-            if entityType == "task":
-                task = ftrack.Task(selection[0]["entityId"])
+            # Add all "img" and "mov" type versions from tasks
+            if item["entityType"] == "task":
+                task = ftrack.Task(item["entityId"])
 
                 for asset in task.getAssets(assetTypes=["img", "mov"]):
                     for version in asset.getVersions():
-                        for component in version.getComponents():
-                            label = "v" + str(version.getVersion()).zfill(3)
-                            label += " - " + asset.getType().getName()
-                            label += " - " + component.getName()
-                            data.append({"label": label,
-                                         "value": component.getId()})
+                        versions.append(version)
 
-                data = sorted(data, key=itemgetter("label"), reverse=True)
+            for version in versions:
+                for component in version.getComponents():
+                    component_list = data.get(component.getName(), [])
+                    component_list.append(component)
+                    data[component.getName()] = component_list
 
-        return {"items": [{"label": "Component to view",
+        data_list = []
+        for key, value in data.iteritems():
+
+            if len(value) == 1:
+                label = "v{0} - {1} - {2}"
+                label = label.format(
+                    str(value[0].getVersion().getVersion()).zfill(3),
+                    value[0].getVersion().getAsset().getType().getName(),
+                    key
+                )
+                data_list.append({"label": label, "value": component.getId()})
+            else:
+                label = "multiple - " + key
+                ids = ""
+                for component in value:
+                    ids += component.getId() + ","
+
+                data_list.append({"label": label, "value": ids[:-1]})
+
+        data_list = sorted(data_list, key=itemgetter("label"), reverse=True)
+
+        return {"items": [{"label": "Components to view",
                            "type": "enumerator",
-                           "name": "component",
-                           "data": data}]}
+                           "name": "components",
+                           "data": data_list}]}
 
 
 class ApplicationStore(ftrack_connect.application.ApplicationStore):
