@@ -1,6 +1,3 @@
-# :coding: utf-8
-# :copyright: Copyright (c) 2015 ftrack
-
 import getpass
 import sys
 import pprint
@@ -8,20 +5,6 @@ import logging
 import json
 import re
 import os
-
-
-if __name__ == "__main__":
-    func = os.path.dirname
-    tools_path = func(func(func(func(func(__file__)))))
-    sys.path.append(os.path.join(tools_path, "ftrack", "ftrack-api"))
-
-    ftrack_connect_path = os.path.join(tools_path, "ftrack",
-                                       "ftrack-connect-package", "windows",
-                                       "current")
-    path = os.path.join(ftrack_connect_path, "common.zip")
-    import zipimport
-    importer = zipimport.zipimporter(path)
-    ftrack_connect = importer.load_module("ftrack_connect")
 
 import ftrack
 import ftrack_connect.application
