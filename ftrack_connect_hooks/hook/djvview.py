@@ -125,13 +125,12 @@ class DJVViewAction(object):
                 if version.getAsset().getType().getShort() in ["img", "mov"]:
                     versions.append(version)
 
-            # Add all "img" and "mov" type versions from tasks
+            # Add latest version of "img" and "mov" type from tasks.
             if item["entityType"] == "task":
                 task = ftrack.Task(item["entityId"])
 
                 for asset in task.getAssets(assetTypes=["img", "mov"]):
-                    for version in asset.getVersions():
-                        versions.append(version)
+                    versions.append(asset.getVersions()[-1])
 
             for version in versions:
                 for component in version.getComponents():
