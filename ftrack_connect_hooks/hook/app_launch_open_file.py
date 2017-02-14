@@ -2,10 +2,13 @@ import os
 import re
 import shutil
 import tempfile
+import logging
 
 import ftrack
 import ftrack_api
 import ftrack_template
+
+log = logging.getLogger(__name__)
 
 
 def version_get(string, prefix, suffix=None):
@@ -32,6 +35,7 @@ def get_task_data(event):
     session = ftrack_api.Session()
     task = session.get("Task", data["context"]["selection"][0]["entityId"])
 
+    # No difference between nuke and nukex files.
     if app_id == "nukex":
         app_id = "nuke"
 
@@ -41,9 +45,17 @@ def get_task_data(event):
     )
     work_area = os.path.dirname(work_file)
 
-    # DJV View
+    # DJV View, files get selected by the user.
     if app_id == "djvview":
-        return get_djv_data(event)
+        return
+
+    # Pyblish
+    if app_id == "pyblish":
+        task_area, template = ftrack_template.format(
+            {}, templates, entity=task
+        )
+        data["command"].append(task_area)
+        return data
 
     # Check to see if the expected work file is a file template.
     if not template.isfile:
@@ -108,64 +120,6 @@ def get_task_data(event):
     return data
 
 
-def get_djv_data(event):
-
-    # Collect all files to be viewed
-    files = []
-    component_ids = event["data"]["context"]["values"]["components"].split(",")
-    for component_id in component_ids:
-        component = ftrack.Component(component_id)
-        file_path = component.getFilesystemPath()
-
-        if component.isSequence():
-            for member in component.getMembers():
-                files.append(file_path % int(member.getName()))
-        else:
-            files.append(file_path)
-
-    files.sort()
-
-    # Append launch file to command
-    file_path = ""
-    if len(files) == 1:
-        file_path = files[0]
-    else:
-        data = ""
-        for f in files:
-            data += f + "\n"
-
-        file_path = os.path.join(tempfile.gettempdir(), "djvview.ifl")
-        with open(file_path, "w") as f:
-            f.write(data)
-
-    data = event["data"]
-    data["command"].append(file_path)
-
-    # Get playback speed from last component in list
-    fps = component.getVersion().getAsset().getParent().get("fps")
-    valid_fps = [
-        "1", "3", "6", "12", "15", "16", "18", "23.976", "24", "25", "29.97",
-        "30", "50", "59.94", "60", "120"
-    ]
-    if str(fps) in valid_fps:
-        data["command"].extend(["-playback_speed", str(fps)])
-    if str(int(fps)) in valid_fps:
-        data["command"].extend(["-playback_speed", str(int(fps))])
-
-    return data
-
-
-def get_assetversion_data(event):
-
-    app_id = event["data"]["application"]["identifier"].split("_")[0]
-    data = event["data"]
-
-    if app_id == "djvview":
-        data = get_djv_data(event)
-
-    return data
-
-
 def modify_application_launch(event):
     """Modify the application launch command with potential files to open"""
 
@@ -180,10 +134,6 @@ def modify_application_launch(event):
     # task based actions
     if entityType == "task":
         data = get_task_data(event)
-
-    # assetversion based actions
-    if entityType == "assetversion":
-        data = get_assetversion_data(event)
 
     return data
 

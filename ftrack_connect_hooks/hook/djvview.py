@@ -1,4 +1,5 @@
 import logging
+import subprocess
 import sys
 import pprint
 import os
@@ -57,13 +58,6 @@ class DJVViewAction(object):
         if entityType not in ["assetversion", "task"]:
             return False
 
-        if entityType == "task":
-            task = ftrack.Task(selection[0]["entityId"])
-
-            # filter to tasks
-            if task.getObjectType() != "Task":
-                return False
-
         return True
 
     def discover(self, event):
@@ -109,60 +103,87 @@ class DJVViewAction(object):
 
         # Launching application
         if "values" in event["data"]:
-            context = event["data"].copy()
+
             applicationIdentifier = event["data"]["applicationIdentifier"]
+            application = self.applicationStore.getApplication(
+                applicationIdentifier
+            )
+            context = event["data"].copy()
+            context["source"] = event["source"]
+            command = self.launcher._getApplicationLaunchCommand(
+                application, context
+            )
 
-            return self.launcher.launch(applicationIdentifier, context)
+            success = True
+            message = '{0} application started.'.format(application['label'])
 
-        # Collect all
-        data = {}
-        for item in event["data"].get("selection", []):
+            command.append(event["data"]["values"]["path"])
 
-            versions = []
-
-            if item["entityType"] == "assetversion":
-                version = ftrack.AssetVersion(item["entityId"])
-                if version.getAsset().getType().getShort() in ["img", "mov"]:
-                    versions.append(version)
-
-            # Add latest version of "img" and "mov" type from tasks.
-            if item["entityType"] == "task":
-                task = ftrack.Task(item["entityId"])
-
-                for asset in task.getAssets(assetTypes=["img", "mov"]):
-                    versions.append(asset.getVersions()[-1])
-
-            for version in versions:
-                for component in version.getComponents():
-                    component_list = data.get(component.getName(), [])
-                    component_list.append(component)
-                    data[component.getName()] = component_list
-
-        data_list = []
-        for key, value in data.iteritems():
-
-            if len(value) == 1:
-                label = "v{0} - {1} - {2}"
-                label = label.format(
-                    str(value[0].getVersion().getVersion()).zfill(3),
-                    value[0].getVersion().getAsset().getType().getName(),
-                    key
+            try:
+                options = dict(
+                    env={},
+                    close_fds=True
                 )
-                data_list.append({"label": label, "value": component.getId()})
+
+                # Ensure subprocess is detached so closing connect will not
+                # also close launched applications.
+                if sys.platform == 'win32':
+                    options['creationflags'] = subprocess.CREATE_NEW_CONSOLE
+                else:
+                    options['preexec_fn'] = os.setsid
+
+                self.logger.debug(
+                    'Launching {0} with options {1}'.format(command, options)
+                )
+                process = subprocess.Popen(command, **options)
+
+            except (OSError, TypeError):
+                self.logger.exception(
+                    '{0} application could not be started with command "{1}".'
+                    .format(applicationIdentifier, command)
+                )
+
+                success = False
+                message = '{0} application could not be started.'.format(
+                    application['label']
+                )
+
             else:
-                label = "multiple - " + key
-                ids = ""
-                for component in value:
-                    ids += component.getId() + ","
+                self.logger.debug(
+                    '{0} application started. (pid={1})'.format(
+                        applicationIdentifier, process.pid
+                    )
+                )
 
-                data_list.append({"label": label, "value": ids[:-1]})
+            return {
+                'success': success,
+                'message': message
+            }
 
-        data_list = sorted(data_list, key=itemgetter("label"), reverse=True)
+        data = event["data"]
+        data["items"] = []
+        ftrack.EVENT_HUB.publish(
+            ftrack.Event(
+                topic='djvview.launch',
+                data=data
+            ),
+            synchronous=True
+        )
 
-        return {"items": [{"label": "Components to view",
-                           "type": "enumerator",
-                           "name": "components",
-                           "data": data_list}]}
+        return {
+            "items": [
+                {
+                    "label": "Items to view",
+                    "type": "enumerator",
+                    "name": "path",
+                    "data": sorted(
+                        data["items"],
+                        key=itemgetter("label"),
+                        reverse=True
+                    )
+                }
+            ]
+        }
 
 
 class ApplicationStore(ftrack_connect.application.ApplicationStore):
@@ -185,18 +206,6 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
                 applicationIdentifier="djvview",
                 icon="http://a.fsdn.com/allura/p/djv/icon"
             ))
-
-        if not applications:
-            func = os.path.dirname
-            tools_path = func(func(func(func(func(__file__)))))
-            path = os.path.join(tools_path, "djv-viewer",
-                                "djv-1.1.0-Windows-64", "bin", "djv_view.exe")
-
-            applications = [{"description": None,
-                             "icon": "http://a.fsdn.com/allura/p/djv/icon",
-                             "identifier": "djvview",
-                             "label": "DJVView Network",
-                             "path": path}]
 
         self.logger.debug(
             "Discovered applications:\n{0}".format(
@@ -228,31 +237,3 @@ def register(registry, **kw):
     # Create action and register to respond to discover and launch actions.
     action = DJVViewAction(applicationStore, launcher)
     action.register()
-
-
-if __name__ == "__main__":
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
-
-    # Create store containing applications.
-    applicationStore = ApplicationStore()
-
-    # Create a launcher with the store containing applications.
-    launcher = ftrack_connect.application.ApplicationLauncher(
-        applicationStore
-    )
-
-    # Create action and register to respond to discover and launch actions.
-    ftrack.setup()
-    action = DJVViewAction(applicationStore, launcher)
-    action.register()
-
-    # dependent event listeners
-    import app_launch_open_file
-    reload(app_launch_open_file)
-
-    ftrack.EVENT_HUB.subscribe(
-        "topic=ftrack.connect.application.launch",
-        app_launch_open_file.modify_application_launch)
-
-    ftrack.EVENT_HUB.wait()
