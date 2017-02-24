@@ -1,7 +1,6 @@
 import os
 import re
 import shutil
-import tempfile
 import logging
 
 import ftrack
@@ -65,6 +64,11 @@ def get_task_data(event):
     if os.path.exists(work_area):
         max_version = 0
         for f in os.listdir(work_area):
+
+            # If the file extension doesn't match, we'll ignore the file.
+            if os.path.splitext(f)[1] != os.path.splitext(work_file)[1]:
+                continue
+
             try:
                 version = version_get(f, "v")[1]
                 if version > max_version:
@@ -77,6 +81,11 @@ def get_task_data(event):
     if not os.path.exists(work_file) and os.path.exists(work_area):
         max_version = 0
         for f in os.listdir(os.path.dirname(work_area)):
+
+            # If the file extension doesn't match, we'll ignore the file.
+            if os.path.splitext(f)[1] != os.path.splitext(work_file)[1]:
+                continue
+
             try:
                 version = version_get(f, "v")[1]
                 if version > max_version:
