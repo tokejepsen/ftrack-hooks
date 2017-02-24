@@ -162,13 +162,24 @@ class DJVViewAction(object):
 
         data = event["data"]
         data["items"] = []
-        ftrack.EVENT_HUB.publish(
-            ftrack.Event(
-                topic='djvview.launch',
-                data=data
-            ),
-            synchronous=True
-        )
+
+        # Starting a job to show user the progress of scanning for files.
+        job = ftrack.createJob("DJV: Scanning for files.", "queued",
+                               ftrack.User(id=event["source"]["user"]["id"]))
+        job.setStatus("running")
+
+        try:
+            ftrack.EVENT_HUB.publish(
+                ftrack.Event(
+                    topic='djvview.launch',
+                    data=data
+                ),
+                synchronous=True
+            )
+        except:
+            job.setStatus("failed")
+        else:
+            job.setStatus("done")
 
         return {
             "items": [
