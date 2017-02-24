@@ -6,7 +6,7 @@ This action will add the ability to use DJV Viewer from Ftrack.
 
 Add ```ftrack-hooks\djv_plugin``` to ```FTRACK_CONNECT_PLUGIN_PATH```.
 
-By default no files will be loaded into the DJV dropdown menu. To get the action to scan for files, you'll need to setup an application lanch plugin.
+By default no files will be loaded into the DJV dropdown menu. To get the action to scan for files, you'll need to setup an application launch plugin.
 
 ```python
 import ftrack
