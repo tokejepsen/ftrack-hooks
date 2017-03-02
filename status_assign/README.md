@@ -18,4 +18,4 @@ task you want to track.
 - Add the people you want to get assigned to a task, when the status
 changes, to the subgroup.
 
-[Walkthrough example](https://www.youtube.com/embed/ZR53sGj1k_k)
+[Walkthrough example](https://youtu.be/ZR53sGj1k_k)
