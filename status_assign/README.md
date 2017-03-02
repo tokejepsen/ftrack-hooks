@@ -18,4 +18,4 @@ task you want to track.
 - Add the people you want to get assigned to a task, when the status
 changes, to the subgroup.
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/ZR53sGj1k_k" frameborder="0" allowfullscreen></iframe>
+[Walkthrough example](https://www.youtube.com/embed/ZR53sGj1k_k)
