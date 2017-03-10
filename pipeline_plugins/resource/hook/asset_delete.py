@@ -43,11 +43,6 @@ class AssetDelete(ftrack.Action):
         if not selection:
             return
 
-        if selection[0]["entityType"] == "task":
-            task = ftrack.Task(selection[0]["entityId"])
-            if task.get("objecttypename") != "entity":
-                return
-
         return {
             "items": [{
                 "label": self.label,
