@@ -92,7 +92,7 @@ def generate_structure(values):
     for name, value in values.iteritems():
         if name.startswith('task_'):
             _, index, key = name.split('_')
-            if key == 'bid':
+            if key == 'bid' and value:
                 value = float(value) * 3600
             tasks[index][key] = value
 
@@ -271,6 +271,10 @@ def register(registry, **kw):
             'Not subscribing plugin as passed argument {0!r} is not an '
             'ftrack.Registry instance.'.format(registry)
         )
+        return
+
+    if registry is not ftrack.EVENT_HANDLERS:
+        # Exit to avoid registering this plugin again.
         return
 
     action = BatchCreate()
