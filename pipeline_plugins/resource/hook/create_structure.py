@@ -29,8 +29,8 @@ def create_job(event):
                            ftrack.User(id=event["source"]["user"]["id"]))
     job.setStatus("running")
 
-    for item in event["data"]["selection"]:
-        try:
+    try:
+        for item in event["data"]["selection"]:
             # Geting any object types
             entity_id = item["entityId"]
             entity = session.get("TypedContext", entity_id)
@@ -65,11 +65,11 @@ def create_job(event):
                     if not os.path.exists(path):
                         print path
                         os.makedirs(path)
-        except:
-            print traceback.format_exc()
-            job.setStatus("failed")
-        else:
-            job.setStatus("done")
+    except:
+        print traceback.format_exc()
+        job.setStatus("failed")
+    else:
+        job.setStatus("done")
 
 
 class CreateStructure(ftrack.Action):
