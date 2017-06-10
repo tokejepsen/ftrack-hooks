@@ -29,47 +29,47 @@ def create_job(event):
                            ftrack.User(id=event["source"]["user"]["id"]))
     job.setStatus("running")
 
-    entity_id = event["data"]["selection"][0]["entityId"]
+    for item in event["data"]["selection"]:
+        try:
+            # Geting any object types
+            entity_id = item["entityId"]
+            entity = session.get("TypedContext", entity_id)
 
-    try:
-        # Geting any object types
-        entity = session.get("TypedContext", entity_id)
+            if not entity:
+                entity_type = item["entityType"].lower()
 
-        if not entity:
-            entity_type = event["data"]["selection"][0]["entityType"].lower()
+                if entity_type == "show":
+                    entity = session.get("Project", entity_id)
+                if entity_type == "assetversion":
+                    entity = session.get("AssetVersion", entity_id)
+                if entity_type == "component":
+                    entity = session.get("Component", entity_id)
 
-            if entity_type == "show":
-                entity = session.get("Project", entity_id)
-            if entity_type == "assetversion":
-                entity = session.get("AssetVersion", entity_id)
-            if entity_type == "component":
-                entity = session.get("Component", entity_id)
+            templates = ftrack_template.discover_templates()
+            valid_templates = ftrack_template.format(
+                {}, templates, entity, return_mode="all"
+            )
 
-        templates = ftrack_template.discover_templates()
-        valid_templates = ftrack_template.format(
-            {}, templates, entity, return_mode="all"
-        )
+            print "Creating Directories/Files:"
+            for path, template in valid_templates:
 
-        print "Creating Directories/Files:"
-        for path, template in valid_templates:
+                if template.isfile:
+                    if not os.path.exists(os.path.dirname(path)):
+                        print os.path.dirname(path)
+                        os.makedirs(os.path.dirname(path))
 
-            if template.isfile:
-                if not os.path.exists(os.path.dirname(path)):
-                    print os.path.dirname(path)
-                    os.makedirs(os.path.dirname(path))
-
-                if not os.path.exists(path):
-                    print path
-                    shutil.copy(template.source, path)
-            else:
-                if not os.path.exists(path):
-                    print path
-                    os.makedirs(path)
-    except:
-        print traceback.format_exc()
-        job.setStatus("failed")
-    else:
-        job.setStatus("done")
+                    if not os.path.exists(path):
+                        print path
+                        shutil.copy(template.source, path)
+                else:
+                    if not os.path.exists(path):
+                        print path
+                        os.makedirs(path)
+        except:
+            print traceback.format_exc()
+            job.setStatus("failed")
+        else:
+            job.setStatus("done")
 
 
 class CreateStructure(ftrack.Action):
