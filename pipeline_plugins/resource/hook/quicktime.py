@@ -4,6 +4,8 @@ import pprint
 import getpass
 from operator import itemgetter
 
+import subprocess
+import os
 import ftrack
 import ftrack_connect.application
 
@@ -95,15 +97,19 @@ class QuickTimeAction(object):
             "items": items
         }
 
-    def launch(self, event):
-        """Callback method for QuickTime action."""
+    def get_file_for_component(self, component):
 
-        # launching application
-        if "values" in event["data"]:
-            context = event["data"].copy()
-            applicationIdentifier = event["data"]["applicationIdentifier"]
+        file_path = component.getFilesystemPath()
 
-            return self.launcher.launch(applicationIdentifier, context)
+        if component.isSequence():
+            members = component.getMembers()
+            if members:
+                frame = int(members[0].getName())
+                file_path = file_path % frame
+
+        return file_path
+
+    def get_components(self, event):
 
         # finding components
         data = []
@@ -119,7 +125,10 @@ class QuickTimeAction(object):
                     version.publish()
 
                 for c in version.getComponents():
-                    data.append({"label": c.getName(), "value": c.getId()})
+                    data.append({
+                        "label": c.getName(),
+                        "value": self.get_file_for_component(c)
+                    })
 
             # get all components on all valid versions
             if entityType == "task":
@@ -127,19 +136,94 @@ class QuickTimeAction(object):
 
                 for asset in task.getAssets(assetTypes=["mov"]):
                     for version in asset.getVersions():
+                        version = str(version.getVersion()).zfill(3)
                         for component in version.getComponents():
-                            label = "v" + str(version.getVersion()).zfill(3)
+                            label = "v" + version
                             label += " - " + asset.getType().getName()
                             label += " - " + component.getName()
-                            data.append({"label": label,
-                                         "value": component.getId()})
+                            data.append({
+                                "label": label,
+                                "value": self.get_file_for_component(component)
+                            })
 
                 data = sorted(data, key=itemgetter("label"), reverse=True)
 
-        return {"items": [{"label": "Component to view",
-                           "type": "enumerator",
-                           "name": "component",
-                           "data": data}]}
+        return {
+            "items": [
+                {
+                    "label": "Component to view",
+                    "type": "enumerator",
+                    "name": "component",
+                    "data": data
+                }
+            ]
+        }
+
+    def launch_subprocess(self, event):
+
+        applicationIdentifier = event["data"]["applicationIdentifier"]
+        application = self.applicationStore.getApplication(
+            applicationIdentifier
+        )
+        context = event["data"].copy()
+        context["source"] = event["source"]
+        command = self.launcher._getApplicationLaunchCommand(
+            application, context
+        )
+
+        success = True
+        message = '{0} application started.'.format(application['label'])
+
+        command.append(event["data"]["values"]["component"])
+
+        try:
+            options = dict(
+                close_fds=True
+            )
+
+            # Ensure subprocess is detached so closing connect will not
+            # also close launched applications.
+            if sys.platform == 'win32':
+                options['creationflags'] = subprocess.CREATE_NEW_CONSOLE
+            else:
+                options['preexec_fn'] = os.setsid
+
+            self.logger.debug(
+                'Launching {0} with options {1}'.format(command, options)
+            )
+            process = subprocess.Popen(command, **options)
+
+        except (OSError, TypeError):
+            self.logger.exception(
+                '{0} application could not be started with command "{1}".'
+                    .format(applicationIdentifier, command)
+            )
+
+            success = False
+            message = '{0} application could not be started.'.format(
+                application['label']
+            )
+
+        else:
+            self.logger.debug(
+                '{0} application started. (pid={1})'.format(
+                    applicationIdentifier, process.pid
+                )
+            )
+
+        return {
+            'success': success,
+            'message': message
+        }
+
+    def launch(self, event):
+        """Callback method for QuickTime action."""
+
+        # launching application
+        if "values" in event["data"]:
+            return self.launch_subprocess(event)
+
+        return self.get_components(event)
 
 
 class ApplicationStore(ftrack_connect.application.ApplicationStore):
