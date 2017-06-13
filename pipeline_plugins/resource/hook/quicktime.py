@@ -136,9 +136,9 @@ class QuickTimeAction(object):
 
                 for asset in task.getAssets(assetTypes=["mov"]):
                     for version in asset.getVersions():
-                        version = str(version.getVersion()).zfill(3)
+                        padded_version = str(version.getVersion()).zfill(3)
                         for component in version.getComponents():
-                            label = "v" + version
+                            label = "v" + padded_version
                             label += " - " + asset.getType().getName()
                             label += " - " + component.getName()
                             data.append({
