@@ -5,6 +5,7 @@ import argparse
 import logging
 import collections
 import threading
+import getpass
 
 import ftrack
 
@@ -145,7 +146,7 @@ def create_from_structure(parent, structure):
             create_from_structure(new_object, children)
 
 
-def get_form(number_of_tasks, structure_type):
+def get_form(number_of_tasks, structure_type, prefix):
     '''Return form from *number_of_tasks* and *structure_type*.'''
     mappings = {
         'episode': ['episode', 'sequence', 'shot'],
@@ -164,7 +165,7 @@ def get_form(number_of_tasks, structure_type):
                 }, {
                     'label': 'Expression',
                     'type': 'text',
-                    'value': '###',
+                    'value': prefix + '###',
                     'name': '{0}_expression'.format(structure_name)
                 }, {
                     'label': 'Incremental',
@@ -212,21 +213,59 @@ class BatchCreate(ftrack.Action):
         '''Callback method for action.'''
         selection = event['data'].get('selection', [])
 
-        project = ftrack.Project(selection[0]['entityId'])
+        data = [
+            {
+                'label': 'Episode, Sequence, Shot',
+                'value': 'episode'
+            },
+            {
+                'label': 'Sequence, Shot',
+                'value': 'sequence'
+            },
+            {
+                'label': 'Shot',
+                'value': 'shot'
+            }
+        ]
+
+        entity = None
+        data_value = 'episode'
+        entity_name = ''
+        try:
+            entity = ftrack.Project(selection[0]['entityId'])
+            entity_name = entity.getFullName()
+        except:
+            pass
+        try:
+            entity = ftrack.Task(selection[0]['entityId'])
+            object_type = entity.getObjectType()
+            entity_name = entity.getName()
+
+            if object_type == 'Episode':
+                del data[0]
+                data_value = 'sequence'
+
+            if object_type == 'Sequence':
+                del data[0]
+                del data[0]
+                data_value = 'shot'
+        except:
+            pass
 
         if 'values' in event['data']:
             values = event['data']['values']
             if 'number_of_tasks' in values:
                 form = get_form(
                     int(values['number_of_tasks']),
-                    values['structure_type']
+                    values['structure_type'],
+                    entity_name + '_'
                 )
                 return form
 
             else:
                 structure = generate_structure(values)
                 logging.info('Creating structure "{0}"'.format(str(structure)))
-                create(project, structure)
+                create(entity, structure)
                 return {
                     'success': True,
                     'message': 'Action completed successfully'
@@ -236,18 +275,9 @@ class BatchCreate(ftrack.Action):
             'items': [{
                 'label': 'Select structure',
                 'type': 'enumerator',
-                'value': 'sequence',
+                'value': data_value,
                 'name': 'structure_type',
-                'data': [{
-                    'label': 'Episode, Sequence, Shot',
-                    'value': 'episode'
-                }, {
-                    'label': 'Sequence, Shot',
-                    'value': 'sequence'
-                }, {
-                    'label': 'Shot',
-                    'value': 'shot'
-                }]
+                'data': data
             }, {
                 'label': 'Number of tasks',
                 'type': 'number',
@@ -255,6 +285,38 @@ class BatchCreate(ftrack.Action):
                 'value': 2
             }]
         }
+
+    def discover(self, event):
+
+        selection = event['data']['selection']
+        # Not interested when not selecting anything
+        if not event['data']['selection']:
+            return
+
+        # Not interested in multi selections
+        if len(selection) > 1:
+            return
+
+        # Only interested in show, episode or sequence
+        if selection[0]['entityType'] not in ['show', 'episode', 'sequence']:
+            return
+
+    def register(self):
+        '''Register discover actions on logged in user.'''
+        ftrack.EVENT_HUB.subscribe(
+            'topic=ftrack.action.discover and source.user.username={0}'.format(
+                getpass.getuser()
+            ),
+            self.discover
+        )
+
+        ftrack.EVENT_HUB.subscribe(
+            'topic=ftrack.action.launch and source.user.username={0} '
+            'and data.actionIdentifier={1}'.format(
+                getpass.getuser(), self.identifier
+            ),
+            self.launch
+        )
 
 
 def register(registry, **kw):
