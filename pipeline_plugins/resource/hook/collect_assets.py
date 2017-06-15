@@ -182,7 +182,7 @@ def launch(event):
                     },
                     {
                         "label": "Original Filename",
-                        "value": "False"
+                        "value": "original_filename"
                     }
                 ]
             },
