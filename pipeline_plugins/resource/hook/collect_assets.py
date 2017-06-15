@@ -156,7 +156,13 @@ def launch(event):
     return {
         "items": [
             {
-                "label": "Collection Directory",
+                "label": "Component to collect",
+                "type": "enumerator",
+                "name": "component",
+                "data": get_components(event, asset_types=['img', 'mov'])
+            },
+            {
+                "label": "Output Directory",
                 "type": "text",
                 "value": "",
                 "name": "collection_directory"
@@ -179,12 +185,6 @@ def launch(event):
                         "value": "False"
                     }
                 ]
-            },
-            {
-                "label": "Component to collect",
-                "type": "enumerator",
-                "name": "component",
-                "data": get_components(event, asset_types=['img', 'mov'])
             },
             {
                 "label": "Parents (-1 = all parents)",
