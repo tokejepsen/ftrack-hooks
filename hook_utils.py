@@ -31,7 +31,10 @@ def get_components(event, asset_types):
             for c in version.getComponents():
                 data.append({
                     "label": c.getName(),
-                    "value": get_file_for_component(c)
+                    "value": {
+                        'name': c.getName(),
+                        'filename': get_file_for_component(c)
+                    }
                 })
 
         # get all components on all valid versions
@@ -47,7 +50,10 @@ def get_components(event, asset_types):
                         label += " - " + component.getName()
                         data.append({
                             "label": label,
-                            "value": get_file_for_component(component)
+                            "value": {
+                                'name': c.getName(),
+                                'filename': get_file_for_component(c)
+                            }
                         })
 
             data = sorted(data, key=itemgetter("label"), reverse=True)

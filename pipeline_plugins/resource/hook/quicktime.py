@@ -7,7 +7,7 @@ import subprocess
 import os
 import ftrack
 import ftrack_connect.application
-from hook_utils import get_components
+from hook_utils import get_components, get_file_for_component
 
 
 class QuickTimeAction(object):
@@ -112,7 +112,9 @@ class QuickTimeAction(object):
         success = True
         message = '{0} application started.'.format(application['label'])
 
-        command.append(event["data"]["values"]["component"])
+        component_file = event["data"]["values"]["component"]['filename']
+
+        command.append(component_file)
 
         try:
             options = dict(
