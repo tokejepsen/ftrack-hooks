@@ -289,6 +289,7 @@ class BatchCreate(ftrack.Action):
     def discover(self, event):
 
         selection = event['data']['selection']
+
         # Not interested when not selecting anything
         if not event['data']['selection']:
             return
@@ -298,8 +299,30 @@ class BatchCreate(ftrack.Action):
             return
 
         # Only interested in show, episode or sequence
-        if selection[0]['entityType'] not in ['show', 'episode', 'sequence']:
+        entity = None
+        object_type = 'Show'
+        try:
+            entity = ftrack.Project(selection[0]['entityId'])
+        except:
+            pass
+        try:
+            entity = ftrack.Task(selection[0]['entityId'])
+            object_type = entity.getObjectType()
+        except:
+            pass
+
+        if object_type.lower() not in ['show', 'episode', 'sequence']:
             return
+
+        return {
+            'items': [{
+                'actionIdentifier': self.identifier,
+                'label': self.label,
+                'icon': self.icon,
+                'description': self.description,
+                'variant': self.variant
+            }]
+        }
 
     def register(self):
         '''Register discover actions on logged in user.'''
