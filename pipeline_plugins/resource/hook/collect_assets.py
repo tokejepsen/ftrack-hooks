@@ -6,7 +6,7 @@ import re
 import shutil
 import traceback
 import threading
-from hook_utils import get_components, get_file_for_component
+from hook_utils import get_components
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -81,8 +81,7 @@ def create_job(event):
             for p in reversed(list(reversed(parents))[:parent_number]):
                 parent_prefix += p.getName() + "."
 
-            component = entity.getComponent(name=values["component"])
-            src = get_file_for_component(component)
+            src = values["component"]
 
             # copying sources to destinations
             if entity.getAsset().getType().getShort() == "img":

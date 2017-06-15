@@ -161,7 +161,16 @@ class QuickTimeAction(object):
         if "values" in event["data"]:
             return self.launch_subprocess(event)
 
-        return get_components(event, asset_types=['mov'])
+        return {
+            "items": [
+                {
+                    "label": "Component to view",
+                    "type": "enumerator",
+                    "name": "component",
+                    "data": get_components(event, asset_types=['mov'])
+                }
+            ]
+        }
 
 
 class ApplicationStore(ftrack_connect.application.ApplicationStore):

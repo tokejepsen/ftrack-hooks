@@ -52,13 +52,4 @@ def get_components(event, asset_types):
 
             data = sorted(data, key=itemgetter("label"), reverse=True)
 
-    return {
-        "items": [
-            {
-                "label": "Component to view",
-                "type": "enumerator",
-                "name": "component",
-                "data": data
-            }
-        ]
-    }
+    return data
