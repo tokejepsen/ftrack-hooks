@@ -3,10 +3,10 @@ import os
 import sys
 import getpass
 import re
-import ntpath
 import shutil
 import traceback
 import threading
+from hook_utils import get_components, get_file_for_component
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -31,7 +31,7 @@ def version_get(string, prefix, suffix=None):
     if not len(matches):
         msg = "No \"_"+prefix+"#\" found in \""+string+"\""
         raise ValueError(msg)
-    return (matches[-1:][0][1], re.search("\d+", matches[-1:][0]).group())
+    return matches[-1:][0][1], re.search("\d+", matches[-1:][0]).group()
 
 
 def async(fn):
@@ -42,14 +42,28 @@ def async(fn):
     return wrapper
 
 
+def format_basename(src_file, formatting):
+    basename = os.path.basename(src_file)
+
+    if formatting == "strip_version":
+        version_string = ".v" + version_get(src_file, "v")[1]
+        basename = basename.replace(version_string, "")
+    elif formatting == "strip_filename":
+        _, basename = os.path.splitext(src_file)
+        basename = basename[1:]
+
+    return basename
+
 @async
 def create_job(event):
+    user_id = event["source"]["user"]["id"]
+    ftrack_user = ftrack.User(id=user_id)
 
-    job = ftrack.createJob("Collecting Assets", "queued",
-                           ftrack.User(id=event["source"]["user"]["id"]))
+    job = ftrack.createJob("Collecting Assets", "queued", ftrack_user)
     job.setStatus("running")
     values = event["data"]["values"]
     errors = ""
+
     # collecting sources and destinations
     for item in event["data"]["selection"]:
         try:
@@ -67,20 +81,16 @@ def create_job(event):
             for p in reversed(list(reversed(parents))[:parent_number]):
                 parent_prefix += p.getName() + "."
 
-            src = entity.getComponent().getFilesystemPath()
-            basename = ntpath.basename(src)
-
-            version_string = ""
-            if values["strip_version"] == "True":
-                version_string = ".v" + version_get(src, "v")[1]
+            component = entity.getComponent(name=values["component"])
+            src = get_file_for_component(component)
 
             # copying sources to destinations
             if entity.getAsset().getType().getShort() == "img":
                 dir_name = entity.getParent().getParent().getName()
                 if parent_prefix:
                     dir_name = parent_prefix
-                asset_dir = os.path.join(values["collection_directory"],
-                                         dir_name)
+
+                asset_dir = os.path.join(values["collection_directory"], dir_name)
 
                 if os.path.exists(asset_dir):
                     # delete existing files
@@ -91,16 +101,18 @@ def create_job(event):
                 for f in os.listdir(os.path.dirname(src)):
                     path = os.path.join(os.path.dirname(src), f)
 
-                    basename = ntpath.basename(path)
-                    basename = basename.replace(version_string, "")
+                    basename = format_basename(src, values["file_formatting"])
+
                     basename = parent_prefix + re.sub(r".%04d", "", basename)
                     dst = os.path.join(asset_dir, basename)
 
                     shutil.copy(path, dst)
             else:
-                basename = parent_prefix + basename.replace(version_string, "")
-                dst = os.path.join(values["collection_directory"],
-                                   basename)
+                basename = format_basename(src, values['file_formatting'])
+                basename = parent_prefix + basename
+
+                dst = os.path.join(values["collection_directory"], basename)
+
                 shutil.copy(src, dst)
         except:
             errors += parent_path + "\n"
@@ -122,35 +134,67 @@ def launch(event):
         values = event["data"]["values"]
 
         # failures
-        if ("collection_directory" not in values or
-           "strip_version" not in values):
-            return {"success": False,
-                    "message": "Missing submit information."}
+        if "collection_directory" not in values or "file_formatting" not in values:
+            return {
+                "success": False,
+                "message": "Missing submit information."
+            }
 
         if not os.path.exists(values["collection_directory"]):
-            return {"success": False,
-                    "message": "Collection Directory does not exist."}
+            return {
+                "success": False,
+                "message": "Collection Directory does not exist."
+            }
 
         create_job(event)
 
         msg = "Collecting assets job created."
-        return {"success": True, "message": msg}
+        return {
+            "success": True,
+            "message": msg
+        }
 
-    return {"items": [{"label": "Collection Directory",
-                       "type": "text",
-                       "value": "",
-                       "name": "collection_directory"},
-                      {"label": "Strip Version",
-                       "type": "enumerator",
-                       "name": "strip_version",
-                       "data": [{"label": "Yes",
-                                 "value": "True"},
-                                {"label": "No",
-                                 "value": "False"}]},
-                      {"label": "Parents (-1 = all parents)",
-                       "type": "number",
-                       "name": "parent_number",
-                       "value": 0}]}
+    return {
+        "items": [
+            {
+                "label": "Collection Directory",
+                "type": "text",
+                "value": "",
+                "name": "collection_directory"
+            },
+            {
+                "label": "Filename Formatting",
+                "type": "enumerator",
+                "name": "file_formatting",
+                "data": [
+                    {
+                        "label": "Strip Version",
+                        "value": "strip_version"
+                    },
+                    {
+                        "label": "Strip Filename",
+                        "value": "strip_filename"
+                    },
+                    {
+                        "label": "Original Filename",
+                        "value": "False"
+                    }
+                ]
+            },
+            {
+                "label": "Component to collect",
+                "type": "enumerator",
+                "name": "component",
+                "data": get_components(event, asset_types=['img', 'mov'])
+            },
+            {
+                "label": "Parents (-1 = all parents)",
+                "type": "number",
+                "name": "parent_number",
+                "value": 0
+            }
+        ]
+    }
 
 
 def discover(event):
