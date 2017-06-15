@@ -18,20 +18,19 @@ if __name__ == "__main__":
 import ftrack
 
 
-def version_get(string, prefix, suffix=None):
+def get_version(string, prefix, suffix=None):
     """Extract version information from filenames.
         Code from Foundry"s nukescripts.version_get()
     """
 
-    if string is None:
-        raise ValueError("Empty version string - no match")
+    if string is not None:
+        regex = "[/_.]" + prefix + "\d+"
+        matches = re.findall(regex, string, re.IGNORECASE)
 
-    regex = "[/_.]"+prefix+"\d+"
-    matches = re.findall(regex, string, re.IGNORECASE)
-    if not len(matches):
-        msg = "No \"_"+prefix+"#\" found in \""+string+"\""
-        raise ValueError(msg)
-    return matches[-1:][0][1], re.search("\d+", matches[-1:][0]).group()
+        if len(matches):
+            return matches[-1:][0][1], re.search("\d+", matches[-1:][0]).group()
+
+    return None
 
 
 def async(fn):
@@ -46,8 +45,10 @@ def format_basename(src_file, formatting):
     basename = os.path.basename(src_file)
 
     if formatting == "strip_version":
-        version_string = ".v" + version_get(src_file, "v")[1]
-        basename = basename.replace(version_string, "")
+        version = get_version(src_file, "v")
+        if version:
+            version_string = ".v" + version[1]
+            basename = basename.replace(version_string, "")
     elif formatting == "strip_filename":
         _, basename = os.path.splitext(src_file)
         basename = basename[1:]
