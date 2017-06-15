@@ -173,18 +173,19 @@ def launch(event):
                 "name": "file_formatting",
                 "data": [
                     {
+                        "label": "Original Filename",
+                        "value": "original_filename"
+                    },
+                    {
                         "label": "Strip Version",
                         "value": "strip_version"
                     },
                     {
                         "label": "Strip Filename",
                         "value": "strip_filename"
-                    },
-                    {
-                        "label": "Original Filename",
-                        "value": "original_filename"
                     }
-                ]
+                ],
+                "value": "original_filename"
             },
             {
                 "label": "Parents (-1 = all parents)",
