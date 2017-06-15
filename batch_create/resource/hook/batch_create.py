@@ -146,7 +146,7 @@ def create_from_structure(parent, structure):
             create_from_structure(new_object, children)
 
 
-def get_form(number_of_tasks, structure_type, prefix):
+def get_form(number_of_tasks, structure_type, prefix, padding_count):
     '''Return form from *number_of_tasks* and *structure_type*.'''
     mappings = {
         'episode': ['episode', 'sequence', 'shot'],
@@ -165,7 +165,7 @@ def get_form(number_of_tasks, structure_type, prefix):
                 }, {
                     'label': 'Expression',
                     'type': 'text',
-                    'value': prefix + '###',
+                    'value': prefix + '#' * padding_count,
                     'name': '{0}_expression'.format(structure_name)
                 }, {
                     'label': 'Incremental',
@@ -258,7 +258,8 @@ class BatchCreate(ftrack.Action):
                 form = get_form(
                     int(values['number_of_tasks']),
                     values['structure_type'],
-                    entity_name + '_'
+                    entity_name + '_',
+                    int(values['padding_count'])
                 )
                 return form
 
@@ -272,18 +273,25 @@ class BatchCreate(ftrack.Action):
                 }
 
         return {
-            'items': [{
-                'label': 'Select structure',
-                'type': 'enumerator',
-                'value': data_value,
-                'name': 'structure_type',
-                'data': data
-            }, {
-                'label': 'Number of tasks',
-                'type': 'number',
-                'name': 'number_of_tasks',
-                'value': 2
-            }]
+            'items': [
+                {
+                    'label': 'Select structure',
+                    'type': 'enumerator',
+                    'value': data_value,
+                    'name': 'structure_type',
+                    'data': data
+                }, {
+                    'label': 'Padding count',
+                    'type': 'number',
+                    'name': 'padding_count',
+                    'value': 4
+                }, {
+                    'label': 'Number of tasks',
+                    'type': 'number',
+                    'name': 'number_of_tasks',
+                    'value': 2
+                }
+            ]
         }
 
     def discover(self, event):
