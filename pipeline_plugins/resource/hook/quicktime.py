@@ -7,7 +7,7 @@ import subprocess
 import os
 import ftrack
 import ftrack_connect.application
-from hook_utils import get_components, get_file_for_component
+from ftrack_hooks.hook_utils import get_components, get_file_for_component
 
 
 class QuickTimeAction(object):

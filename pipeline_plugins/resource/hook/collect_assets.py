@@ -6,7 +6,7 @@ import re
 import shutil
 import traceback
 import threading
-from hook_utils import get_components, get_file_for_component
+from ftrack_hooks.hook_utils import get_unique_component_names, get_file_for_component
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -82,7 +82,7 @@ def create_job(event):
             for p in reversed(list(reversed(parents))[:parent_number]):
                 parent_prefix += p.getName() + "."
 
-            component_name = values["component"]['name']
+            component_name = values["component_name"]
 
             try:
                 component = entity.getComponent(name=component_name)
@@ -166,8 +166,8 @@ def launch(event):
             {
                 "label": "Component to collect",
                 "type": "enumerator",
-                "name": "component",
-                "data": get_components(event, asset_types=['img', 'mov'])
+                "name": "component_name",
+                "data": get_unique_component_names(event, asset_types=['img', 'mov'])
             },
             {
                 "label": "Output Directory",
