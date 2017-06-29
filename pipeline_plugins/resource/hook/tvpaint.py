@@ -13,7 +13,7 @@ import threading
 import subprocess
 import time
 
-tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+tools_path = os.getenv("NETWORK_TOOLS_PATH", os.path.dirname(__file__))
 ftrack_connect_path = os.path.join(tools_path, 'ftrack',
                                    'ftrack-connect_package', 'windows',
                                    'current')
@@ -278,8 +278,7 @@ class LaunchApplicationAction(object):
         # adding application and task environment
         environment = {}
 
-        tools_path = os.path.dirname(os.path.dirname(__file__))
-        tools_path = os.path.dirname(tools_path)
+        tools_path = os.getenv("NETWORK_TOOLS_PATH", os.path.dirname(__file__))
         pyblish_path = os.path.join(tools_path, 'pyblish')
 
         app_plugins = os.path.join(pyblish_path, 'pyblish-bumpybox',

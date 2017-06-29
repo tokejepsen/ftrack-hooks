@@ -8,7 +8,7 @@ import traceback
 
 import ftrack
 
-tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+tools_path = os.getenv("NETWORK_TOOLS_PATH", os.path.dirname(__file__))
 
 
 class Action(ftrack.Action):
