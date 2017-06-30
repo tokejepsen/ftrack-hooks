@@ -9,18 +9,6 @@ import getpass
 import _winreg
 import re
 
-if __name__ == "__main__":
-    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    sys.path.append(os.path.join(tools_path, "ftrack", "ftrack-api"))
-
-    ftrack_connect_path = os.path.join(tools_path, "ftrack",
-                                       "ftrack-connect-package", "windows",
-                                       "current")
-    path = os.path.join(ftrack_connect_path, "common.zip")
-    import zipimport
-    importer = zipimport.zipimporter(path)
-    ftrack_connect = importer.load_module("ftrack_connect")
-
 import ftrack
 import ftrack_connect.application
 

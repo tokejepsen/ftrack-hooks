@@ -147,8 +147,7 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
 
         if sys.platform == "win32":
 
-            func = os.path.dirname
-            tools_path = func(func(func(func(func(__file__)))))
+            tools_path = os.getenv("NETWORK_TOOLS_PATH", os.path.dirname(__file__))
             path = tools_path.split(os.sep) + ["rv", "RV.\d.+", "bin",
                                                "rv.exe"]
             applications.extend(self._searchFilesystem(

@@ -13,10 +13,6 @@ import threading
 logging.basicConfig()
 logger = logging.getLogger()
 
-if __name__ == '__main__':
-    tools_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    sys.path.append(os.path.join(tools_path, 'ftrack', 'ftrack-api'))
-
 import ftrack
 
 
