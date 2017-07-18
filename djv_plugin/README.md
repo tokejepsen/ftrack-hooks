@@ -2,7 +2,11 @@
 
 This action will add the ability to use DJV Viewer from Ftrack.
 
-**Setup**
+## Usage
+
+When launching DJV View you'll get a dropdown menu of files to choosing from. When hitting ```Submit``` the selected files will be loaded into DJV View.
+
+## Setup
 
 Add ```ftrack-hooks\djv_plugin``` to ```FTRACK_CONNECT_PLUGIN_PATH```.
 
@@ -73,7 +77,3 @@ def register(registry, **kw):
         modify_launch
     )
 ```
-
-**Usage**
-
-When launching DJV View you'll get a dropdown menu of files to choosing from. When hitting ```Submit``` the selected files will be loaded into DJV Viewer.
