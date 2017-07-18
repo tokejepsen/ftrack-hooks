@@ -1,4 +1,4 @@
-# DJV Viewer
+# DJV View
 
 This action will add the ability to use DJV Viewer from Ftrack.
 
