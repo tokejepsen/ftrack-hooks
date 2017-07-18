@@ -1,4 +1,4 @@
-# DJV Viewer
+# Houdini
 
 This action will add the ability to launch Houdini from Ftrack.
 
