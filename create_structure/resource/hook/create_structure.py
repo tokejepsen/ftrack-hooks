@@ -6,7 +6,6 @@ import traceback
 import logging
 
 import ftrack_api
-from ftrack_action_handler import action
 
 
 def async(fn):
@@ -56,7 +55,7 @@ def create_job(event, session):
     session.commit()
 
 
-class CreateStructureAction(action.BaseAction):
+class CreateStructureAction(object):
     '''Create Structure action
 
     `label` a descriptive string identifing your action.
