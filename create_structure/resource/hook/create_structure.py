@@ -29,7 +29,7 @@ def create_job(event, session):
             'user': user,
             'status': 'running',
             'data': json.dumps({
-                'description': 'Create Structure: Scanning for data.'
+                'description': 'Create Structure: Generate file structure.'
             })
         }
     )
