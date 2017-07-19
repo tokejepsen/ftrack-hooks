@@ -51,8 +51,8 @@ def get_components(event, asset_types):
                         data.append({
                             "label": label,
                             "value": {
-                                'name': c.getName(),
-                                'filename': get_file_for_component(c)
+                                'name': component.getName(),
+                                'filename': get_file_for_component(component)
                             }
                         })
 
