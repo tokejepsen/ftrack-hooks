@@ -1,0 +1,29 @@
+{
+    "MAYA_PLUG_IN_PATH": [
+        "{STUDIO_REPOS}\\maya\\plugins"
+    ],
+    "MAYA_AUTOSAVE_FOLDER": [
+        "C:\\mayatemp\\autosave"
+    ],
+    "MAYA_SCRIPT_PATH": [
+        "{STUDIO_REPOS}\\maya\\scripts",
+        "{STUDIO_REPOS}\\maya\\prefs\\shelves"
+    ],
+    "MAYA_PRESET_PATH": [
+        "{STUDIO_REPOS}\\maya\\presets"
+    ],
+    "XBMLANGPATH": [
+        "{STUDIO_REPOS}\\maya\\prefs\\icons",
+        "{STUDIO_REPOS}\\maya\\SOuP_2017_01_25\\icons"
+    ],
+    "MAYA_RENDER_SETUP_GLOBAL_TEMPLATE_PATH": [
+        "{STUDIO_REPOS}\\maya\\RStemplates"
+    ],
+    "MAYA_RENDER_SETUP_GLOBAL_PRESETS_PATH": [
+        "{STUDIO_REPOS}\\maya\\renderPresets"
+    ],
+    "PYTHONPATH": [
+        "{STUDIO_REPOS}\\maya\\scripts",
+        "{STUDIO_REPOS}\\DeadlineRepository9\\submission\\Maya\\Client"
+    ]
+}

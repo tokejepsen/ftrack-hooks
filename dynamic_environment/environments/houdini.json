@@ -1,0 +1,21 @@
+{
+    "HOUDINI_PATH": [
+        "{STUDIO_TOOLS}\\pyblish\\pyblish-houdini\\pyblish_houdini\\houdini_path",
+        "&"
+    ],
+    "HSITE": [
+        "{STUDIO_REPOS}\\houdini\\HSITE"
+    ],
+    "HOUDINI_ASSET_STORE_PATH": [
+        "{STUDIO_REPOS}\\houdini\\asset_store"
+    ],
+    "PYTHONPATH": [
+        "{STUDIO_TOOLS}\\houdini"
+    ],
+    "HOUDINI_OTLSCAN_PATH": [
+        "{STUDIO_REPOS}\\houdini\\qlib\\otls\\base",
+        "{STUDIO_REPOS}\\houdini\\qlib\\otls\\experimental",
+        "{STUDIO_REPOS}\\houdini\\qlib\\otls\\future",
+        "&"
+    ]
+}
