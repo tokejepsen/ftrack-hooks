@@ -15,9 +15,18 @@ Usage:
 
 **Ftrack attribute:**
 
-A list of tools that the entity and all it's children can use, separated with a comma `,`. Keep in mind that these are additional tools on top of whatever app you chose to run from ftrack actions.
+Ftrack Custom Attributes with following settings needs to be created
 
-Tools in the attribute are purely up to you, but each tool must correspond to a .json config file on disk. Additionaly this plugin automatically adds the app version (maya, nuke ...) at the end of the plugin name. This is to allow picking the correct version of the plugin in case of multiple versions of host app being available on the system. For example mtoa_1.4.2 exists for maya 2017 and 2018. The mechanism should probably be made a bit more flexible eventualy. 
+```
+Name:     'environment'
+Label:    'environment' (or whatever you choose)
+Type:     Text
+Added to: Hierarchical
+```
+
+It then needs to be filled with a list of tools that the entity and all it's children can use, separated with a comma `,`. Keep in mind that these are additional tools on top of whatever app you chose to run from ftrack actions.
+
+What you put in the attribute is purely up to you, but each item must correspond to a .json config file on disk. Most often these would be plugins you need to be loaded in maya, or nuke, but can be a custom set of environment variables as well. Additionaly this plugin automatically adds the app version (maya, nuke ...) at the end of the plugin name. This is to allow picking the correct version of the plugin in case of multiple versions of host app being available on the system. For example mtoa_1.4.2 exists for maya 2017 and 2018. The mechanism should probably be made a bit more flexible eventualy. 
 
 when you launch maya 2017 from task with environment: `mtoa_2.0.1, yeti_2.1.0, golaem_6.1` the resulting config files loaded will be `mtoa_2.0.1_2017.json, yeti_2.1.0_2017.json, golaem_6.1_2017.json`
 
@@ -56,7 +65,7 @@ Example of config files for maya.
     ],
 }
 ```
-mtoa_2.0.1_2017
+**mtoa_2.0.1_2017**
 ```json
 {
     "MAYA_MODULE_PATH": [
@@ -71,10 +80,40 @@ mtoa_2.0.1_2017
 }
 ```
 
-Mechanism:
+Mechanism and inheritance:
 ----------- 
 
-All the .json files thsi plugins picks up get merged together to form the final environment for the given task and app. You can also separate out version specific environmnents from global ones. For example when you launch Maya 2017 from ftrack task, the plugin will first look for `maya.json` config, then `maya_2017.json`, then it will add all the additional config files specified in the ftrack *'environment'* attribute.
+All the .json files this plugins picks up get merged together to form the final environment for the given task and app. You can also separate out version specific environmnents from global ones. For example when you launch Maya 2017 from ftrack task, the plugin will first look for `maya.json` config, then `maya_2017.json`, then it will add all the additional config files specified in the ftrack *'environment'* attribute.
+
+Plugin determines what environment to use by traversing up the hierarchy from the task (or any other entity) and uses the first environment that has an override. That allows overrides on any level that will affect all the children of the given entity, unless the child has it's own override
+
+Example:
+
+- Project01: *manual* - `mtoa_2.0.1, yeti_2.1.0`
+    - SQ01: *inherits from Project01*
+        - SH010: *inherits from SQ01*
+            - Task01: *inherits from SH010*
+            - Task02: *override* -  `mtoa_2.0.1, yeti_2.1.0, golaem_5`
+        - SH020: *override* -  `mtoa_1.4.2`
+            - Task03: *inherits from SH020*
+            - Task04: *inherits from SH020*
+    - SQ02: *override* -  `mtoa_2.0.1, yeti_2.1.0, golaem_6.1`
+        - SH030: *inherits from SQ020*
+            - Task05: *override* -  `mtoa_2.0.1, yeti_2.1.0`
+            - Task06: *inherits from SH030*
+
+Following environments will be set up when launching tasks:
+
+| Application  | Task           | environmnet |
+| :---         |     :---      |          :--- |
+|Maya 2017 | Task01 | `mtoa_2.0.1_2017.json, yeti_2.1.0_2017.json`|
+|Maya 2018 | Task01 | `mtoa_2.0.1_2018.json, yeti_2.1.0_2018.json`|
+|Maya 2017 | Task02 | `mtoa_2.0.1_2017.json, yeti_2.1.0_2017.json, golaem_5_2017.json`|
+|Maya 2017 | Task03 | `mtoa_1.4.2_2017.json`|
+|Maya 2017 | Task04 | `mtoa_1.4.2_2017.json`|
+|Maya 2017 | Task05 | `mtoa_2.0.1_2017.json, yeti_2.1.0_2017.json`|
+|Maya 2017 | Task06 | `mtoa_2.0.1_2017.json, yeti_2.1.0_2017.json, golaem_6.1_2017.json`|
+
 
 Limitations:
 --------------
