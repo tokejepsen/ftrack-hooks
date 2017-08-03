@@ -33,7 +33,7 @@ when you launch maya 2017 from task with environment: `mtoa_2.0.1, yeti_2.1.0, g
 
 **Environment files:**
 
-Each versin of a tool (plugin, software, whatever) needs it's own config file, which is just a simple .json formatted dictionary holding all the environment variables needed to run the tool. 
+Each version of a tool (plugin, software, whatever) needs it's own config file, which is just a simple .json formatted dictionary holding all the environment variables needed to run the tool. 
 
 Note that you can use environment variable in these config file. Anything wrapped in curly brackets `{}` will be resolved as environment variable when app is launched. 
 
