@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+import platform
 import re
 import ftrack
 import ftrack_api
@@ -42,46 +43,52 @@ def dynamic_environment(event):
     task = session.query('Task where id is {0}'.format(taskid)).one()
 
     # get location of json environmnets from env var
-    env_path = os.environ.get('FTRACK_APP_ENVIRONMENTS')
+    try:
+        env_paths = os.environ['FTRACK_APP_ENVIRONMENTS'].split(os.pathsep)
+    except KeyError:
+        raise Exception('"FTRACK_APP_ENVIRONMENTS" environment variable not\
+                         found. please create it and point it to a folder with\
+                         your .json config files.')
     env_files = []
 
-    # determine config file for version independent environment
-    app_name, app_variant = app['identifier'].split('_')
-    app_file_name = '{}.json'.format(app_name)
-    env_files.append(os.path.join(env_path, app_file_name))
+    for env_path in env_paths:
+        # determine config file for version independent environment
+        app_name, app_variant = app['identifier'].split('_')
+        app_file_name = '{}.json'.format(app_name)
+        env_files.append(os.path.join(env_path, app_file_name))
 
-    # determine config file for version dependent environment
-    variant_file_name = '{}.json'.format(app['identifier'])
-    env_files.append(os.path.join(env_path, variant_file_name))
+        # determine config file for version dependent environment
+        variant_file_name = '{}.json'.format(app['identifier'])
+        env_files.append(os.path.join(env_path, variant_file_name))
 
-    # collect all parents from the task
-    parents = []
-    for item in task['link']:
-        parents.append(session.get(item['type'], item['id']))
+        # collect all parents from the task
+        parents = []
+        for item in task['link']:
+            parents.append(session.get(item['type'], item['id']))
 
-    # collect all the 'environment' attributes from parents
-    enviro_attr = None
-    for parent in parents:
-        # check if the attribute is empty, if not use it
-        if parent['custom_attributes']['environment']:
-            enviro_attr = parent['custom_attributes']['environment']
+        # collect all the 'environment' attributes from parents
+        enviro_attr = None
+        for parent in parents:
+            # check if the attribute is empty, if not use it
+            if parent['custom_attributes']['environment']:
+                enviro_attr = parent['custom_attributes']['environment']
 
-    if not enviro_attr:
-        logger.info('No additional environmnet found.')
-        return
+        if not enviro_attr:
+            logger.info('No additional environmnet found.')
+            return
 
-    logger.debug('ENVIRO Attr:{}'.format(enviro_attr))
+        logger.debug('ENVIRO Attr:{}'.format(enviro_attr))
 
-    # separate list of tools from environmnet attr to individual tools
-    environments_to_add = enviro_attr.split(',')
+        # separate list of tools from environmnet attr to individual tools
+        environments_to_add = enviro_attr.split(',')
 
-    # construct the path to corresponding json file by adding
-    # tool, app version and json extension
-    for tool in environments_to_add:
-        tool = tool.strip()
-        tool_version = '_'.join([tool, app_variant])
-        tool_env_file = '{}.json'.format(tool_version)
-        env_files.append(os.path.join(env_path, tool_env_file))
+        # construct the path to corresponding json file by adding
+        # tool, app version and json extension
+        for tool in environments_to_add:
+            tool = tool.strip()
+            tool_version = '_'.join([tool, app_variant])
+            tool_env_file = '{}.json'.format(tool_version)
+            env_files.append(os.path.join(env_path, tool_env_file))
 
     env_add = []
 
