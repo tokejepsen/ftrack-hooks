@@ -12,4 +12,5 @@ This action will add the ability to create multiple tasks on entities with custo
 
 ## Setup
 
-Add ```ftrack-hooks\batch_tasks``` to ```FTRACK_CONNECT_PLUGIN_PATH```.
+Add ```[ftrack-hooks]\batch_tasks``` to ```FTRACK_CONNECT_PLUGIN_PATH```.
+Add ```[ftrack-hooks]``` to ```PYTHONPATH```.
