@@ -1,9 +1,9 @@
 import ftrack_api
 
-from ftrack_hooks import action
+from ftrack_hooks.action import BaseAction
 
 
-class BatchTasksAction(action.BaseAction):
+class BatchTasksAction(BaseAction):
     '''Batch Tasks action
 
     `label` a descriptive string identifing your action.
