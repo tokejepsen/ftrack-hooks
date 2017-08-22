@@ -1,5 +1,6 @@
 # :coding: utf-8
 import logging
+import getpass
 
 
 class BaseAction(object):
@@ -43,7 +44,10 @@ class BaseAction(object):
         '''Registers the action, subscribing the the discover and launch
         topics.'''
         self._session.event_hub.subscribe(
-            'topic=ftrack.action.discover', self._discover
+            'topic=ftrack.action.discover and source.user.username={0}'.format(
+                getpass.getuser()
+            ),
+            self._discover
         )
 
         self._session.event_hub.subscribe(
