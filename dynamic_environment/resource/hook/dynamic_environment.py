@@ -131,14 +131,3 @@ def register(registry, **kw):
         'topic=ftrack.connect.application.launch',
         dynamic_environment
     )
-
-
-if __name__ == '__main__':
-    logger.setLevel(logging.DEBUG)
-
-    ftrack.setup()
-
-    ftrack.EVENT_HUB.subscribe(
-        'topic=ftrack.connect.application.launch',
-        dynamic_environment)
-    ftrack.EVENT_HUB.wait()
