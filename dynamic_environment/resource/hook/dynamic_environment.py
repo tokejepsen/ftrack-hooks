@@ -3,7 +3,6 @@ import json
 import os
 import platform
 import re
-import ftrack
 import ftrack_api
 
 logging.basicConfig()
@@ -118,17 +117,15 @@ def dynamic_environment(event):
                 appendPath(path, str(variable), data['options']['env'])
 
 
-def register(registry, **kw):
-    '''Register location plugin.'''
+def register(session):
 
-    # Validate that registry is the correct ftrack.Registry. If not,
-    # assume that register is being called with another purpose or from a
-    # new or incompatible API and return without doing anything.
-    if registry is not ftrack.EVENT_HANDLERS:
-        # Exit to avoid registering this plugin again.
+    # Validate that session is an instance of ftrack_api.Session. If not,assume
+    # that register is being called from an old or incompatible API and return
+    # without doing anything.
+    if not isinstance(session, ftrack_api.Session):
         return
 
-    ftrack.EVENT_HUB.subscribe(
-        'topic=ftrack.connect.application.launch',
+    session.event_hub.subscribe(
+        "topic=ftrack.connect.application.launch",
         dynamic_environment
     )
