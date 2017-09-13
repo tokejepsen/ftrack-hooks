@@ -97,8 +97,9 @@ def dynamic_environment(event):
         else:
             logger.info('No additional environment found.')
 
-    # loop through config files
-    for env_file in env_files:
+    # loop through config files. We traverse the files in reverse to make sure
+    # that Task environment variables comes before Shot etc.
+    for env_file in reversed(env_files):
         try:
             logger.debug('Adding {} to the environment'.format(env_file))
             env_add = load_env(env_file)
