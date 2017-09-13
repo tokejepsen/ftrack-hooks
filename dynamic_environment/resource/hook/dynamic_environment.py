@@ -46,71 +46,75 @@ def dynamic_environment(event):
     try:
         env_paths = os.environ['FTRACK_APP_ENVIRONMENTS'].split(os.pathsep)
     except KeyError:
-        raise Exception('"FTRACK_APP_ENVIRONMENTS" environment variable not\
-                         found. please create it and point it to a folder with\
-                         your .json config files.')
+        raise KeyError(
+                '"FTRACK_APP_ENVIRONMENTS" environment variable not found. '
+                'Please create it and point it to a folder with your .json '
+                'config files.'
+             )
+
     env_files = []
-
     for env_path in env_paths:
-        # determine config file for version independent environment
-        app_name, app_variant = app['identifier'].split('_')
-        app_file_name = '{}.json'.format(app_name)
-        env_files.append(os.path.join(env_path, app_file_name))
 
-        # determine config file for version dependent environment
-        variant_file_name = '{}.json'.format(app['identifier'])
-        env_files.append(os.path.join(env_path, variant_file_name))
+        # Adding platform and application environment files.
+        env_files.append(
+            os.path.join(env_path, platform.system().lower() + ".json")
+        )
+        env_files.append(
+            os.path.join(
+                env_path,
+                "{0}_{1}.json".format(
+                    platform.system().lower(), app["identifier"]
+                )
+            )
+        )
 
-        # collect all parents from the task
-        parents = []
-        for item in task['link']:
-            parents.append(session.get(item['type'], item['id']))
-
-        # collect all the 'environment' attributes from parents
+        # Collect the first valid "environment" attribute from the selected
+        # entity up to the project.
         enviro_attr = None
-        for parent in parents:
+        for item in reversed(task['link']):
+            entity = session.get(item['type'], item['id'])
             # check if the attribute is empty, if not use it
-            if parent['custom_attributes']['environment']:
-                enviro_attr = parent['custom_attributes']['environment']
+            if bool(entity['custom_attributes']['environment'].rstrip()):
+                enviro_attr = entity['custom_attributes']['environment']
+                # Stop the hierarchy traversal when an environmnent is found.
+                break
 
-        if not enviro_attr:
-            logger.info('No additional environmnet found.')
-            return
+        if enviro_attr:
+            logger.debug('ENVIRO Attr:{}'.format(enviro_attr))
 
-        logger.debug('ENVIRO Attr:{}'.format(enviro_attr))
-
-        # separate list of tools from environmnet attr to individual tools
-        environments_to_add = enviro_attr.split(',')
-
-        # construct the path to corresponding json file by adding
-        # tool, app version and json extension
-        for tool in environments_to_add:
-            tool = tool.strip()
-            tool_version = '_'.join([tool, app_variant])
-            tool_env_file = '{}.json'.format(tool_version)
-            env_files.append(os.path.join(env_path, tool_env_file))
-
-    env_add = []
+            # Construct the path to corresponding json files by adding
+            # platform, application and item.
+            environment_string = "_".join([
+                platform.system().lower(), app["identifier"]
+            ])
+            for item in enviro_attr.split(','):
+                env_files.append(
+                    os.path.join(
+                        env_path,
+                        "{0}_{1}.json".format(environment_string, item)
+                    )
+                )
+        else:
+            logger.info('No additional environment found.')
 
     # loop through config files
     for env_file in env_files:
         try:
-            logger.info('Adding {} to the environment'.format(env_file))
+            logger.debug('Adding {} to the environment'.format(env_file))
             env_add = load_env(env_file)
-        except:
-            logger.info('Unable to find the environment file.')
-            logger.info('Make sure that {} exists.'.format(env_file))
-            env_add = None
+        except IOError:
+            logger.debug('Unable to find the environment file.')
+            logger.debug('Make sure that {} exists.'.format(env_file))
+            env_add = []
 
         # Add each path in config file to the environment
-        if env_add:
-            for variable in env_add:
-                for path in env_add[variable]:
-                    keys = re.findall(r'{.*?}', path)
-                    for key in keys:
-                        found_key = os.path.abspath(os.environ.get(key[1:-1]))
-                        path = path.replace(key, found_key)
-                    appendPath(path, str(variable), data['options']['env'])
+        for variable in env_add:
+            for path in env_add[variable]:
+                keys = re.findall(r'{.*?}', path)
+                for key in keys:
+                    found_key = os.path.abspath(os.environ.get(key[1:-1]))
+                    path = path.replace(key, found_key)
+                appendPath(path, str(variable), data['options']['env'])
 
 
 def register(registry, **kw):
