@@ -59,24 +59,29 @@ def dynamic_environment(event):
             enviro_attr = entity['custom_attributes']['environment']
             # Stop the hierarchy traversal when an environmnent is found.
             break
+    logger.debug('Environment attribute: {}'.format(enviro_attr))
 
-    if not enviro_attr:
-        logger.info('No additional environment found.')
-        return
+    # Construct file names from platform, application identifier and item.
+    names = []
+    # Always search for platform and application identifier environment files.
+    name = platform.system().lower()
+    names.append(name)
+    name += "_" + app["identifier"]
+    names.append(name)
+    # Loop through environment attributes and add names.
+    if enviro_attr:
+        for item in enviro_attr.split(','):
+            names.append(name + "_" + item)
 
-    logger.debug('ENVIRO Attr:{}'.format(enviro_attr))
-
-    # Construct base file names from platform, application identifier and item.
+    # Construct base file names from names split by "_".
     basenames = []
-    basenames.append(platform.system().lower())
-    for item in enviro_attr.split(','):
-        name = platform.system().lower()
-        # Joining and splitting by "_" to account for "_" in application
-        # identifier and item.
-        for split in "_".join([app["identifier"], item]).split("_"):
-            name += "_" + split
-            if name not in basenames:
-                basenames.append(name)
+    for name in names:
+        split = name.split("_")
+        iteration = []
+        for item in split:
+            iteration.append(item)
+            if "_".join(iteration) not in basenames:
+                basenames.append("_".join(iteration))
 
     # Construct environment files from environment paths and basenames.
     env_files = []
