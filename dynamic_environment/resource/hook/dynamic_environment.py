@@ -82,16 +82,25 @@ def dynamic_environment(event):
     env_files = []
     for env_path in env_paths:
         for name in basenames:
-            env_files.append(os.path.join(env_path, name))
+            env_files.append(os.path.join(env_path, name + ".json"))
 
-    # loop through config files and check for existence.
-    for env_file in env_files:
+    # loop through config files and check for existence. We traverse the files
+    # in reverse to make sure that higher levels of environment variables do
+    # not prepend lower level environment variables. For example
+    # "windows_maya_2017.json" should come before "windows_maya.json".
+    for env_file in reversed(env_files):
         try:
             env_add = load_env(env_file)
             logger.debug('Adding {} to the environment'.format(env_file))
         except IOError:
             logger.debug(
                 'Unable to find the environment file: "{}"'.format(env_file)
+            )
+            env_add = []
+        except ValueError as e:
+            logger.debug(
+                'Unable to read the environment file: "{0}", due to:'
+                '\n{1}'.format(env_file, e)
             )
             env_add = []
 
