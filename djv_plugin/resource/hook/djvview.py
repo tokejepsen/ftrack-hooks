@@ -8,6 +8,8 @@ import re
 from operator import itemgetter
 
 import ftrack
+import ftrack_api
+from ftrack_connect.session import get_shared_session
 import ftrack_connect.application
 
 
@@ -171,6 +173,14 @@ class DJVViewAction(object):
         try:
             ftrack.EVENT_HUB.publish(
                 ftrack.Event(
+                    topic='djvview.launch',
+                    data=data
+                ),
+                synchronous=True
+            )
+            session = get_shared_session()
+            session.event_hub.publish(
+                ftrack_api.event.base.Event(
                     topic='djvview.launch',
                     data=data
                 ),
