@@ -26,7 +26,7 @@ class ProcessReviewAction(BaseAction):
      """
     label = "ProcessReview"
     variant = None
-    identifier = "process_review"
+    identifier = "process-review-action"
     description = None
 
     def __init__(self, session):
@@ -255,9 +255,8 @@ class ProcessReviewAction(BaseAction):
                 job["status"] = "failed"
             else:
                 job["status"] = "done"
-            finally:
-                shutil.rmtree(tempdir)
 
+            shutil.rmtree(tempdir)
             session.commit()
 
             return {
