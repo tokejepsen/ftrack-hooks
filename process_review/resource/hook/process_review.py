@@ -5,6 +5,7 @@ import traceback
 import shutil
 import uuid
 import subprocess
+import getpass
 
 import requests
 import ftrack_api
@@ -26,7 +27,7 @@ class ProcessReviewAction(BaseAction):
      """
     label = "ProcessReview"
     variant = None
-    identifier = "process-review-action"
+    identifier = "process-review" + getpass.getuser()
     description = None
 
     def __init__(self, session):
