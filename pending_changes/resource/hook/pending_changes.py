@@ -1,74 +1,133 @@
-import threading
+import json
 import getpass
 
-import ftrack
+import ftrack_api
+from ftrack_connect.session import get_shared_session
 
 
-def async(fn):
-    """Run *fn* asynchronously."""
-    def wrapper(*args, **kwargs):
-        thread = threading.Thread(target=fn, args=args, kwargs=kwargs)
-        thread.start()
-    return wrapper
-
-
-@async
 def callback(event):
 
-    # Return early if event wasn't triggered by the current user.
-    if "user" in event["data"]:
-        user = ftrack.User(event["data"]["user"]["userid"])
-        if user.getUsername() != getpass.getuser():
-            return
+    session = get_shared_session()
 
-    for entity in event['data'].get('entities', []):
+    for entity_data in event["data"].get("entities", []):
 
-        # Filter non-assetversions
-        if entity.get('entityType') == 'task' and entity['action'] == 'update':
+        # Filter to tasks
+        if entity_data.get('entityType') != 'task':
+            continue
 
-            if 'statusid' not in entity.get('keys'):
-                return
+        # Filter to updates
+        if entity_data['action'] != 'update':
+            continue
 
-            # Find task if it exists
-            task = None
-            try:
-                task = ftrack.Task(id=entity.get('entityId'))
-            except:
-                return
+        # Filter to status changes
+        if 'statusid' not in entity_data.get('keys'):
+            continue
 
-            new_status = ftrack.Status(entity["changes"]["statusid"]["new"])
+        # Filter to "Pending Changes"
+        new_status = session.get(
+            "Status", entity_data["changes"]["statusid"]["new"]
+        )
 
-            # To Pending Changes
-            if new_status.getName().lower() == "pending changes":
+        if new_status["name"].lower() != "pending changes":
+            continue
 
-                user = ftrack.User(id=event["source"]["user"]["id"])
-                job = ftrack.createJob("Version Up Tasks", "queued", user)
-                job.setStatus("running")
+        task = session.get("Task", entity_data["entityId"])
+        user = session.get("User", event["source"]["user"]["id"])
+        job = session.create(
+            "Job",
+            {
+                "user": user,
+                "status": "running",
+                "data": json.dumps({"description": "Version Up Scene."})
+            }
+        )
+        session.commit()
 
-                try:
-                    asset = task.getParent().createAsset(
-                        task.getName(),
-                        "scene",
-                        task=task
-                    )
+        try:
+            versions = session.query(
+                "select version,components,asset.name,asset.parent,"
+                "asset.type.id,asset.parent.id,asset.type.id from AssetVersion"
+                " where task.id is \"{0}\" and asset.type.short is "
+                "\"scene\"".format(task["id"])
+            )
 
-                    asset.createVersion(taskid=task.getId())
+            latest_version = {"version": 0}
+            for version in versions:
+                if latest_version["version"] < version["version"]:
+                    latest_version = version
 
-                    asset.publish()
-                except:
-                    job.setStatus("failed")
-                else:
-                    job.setStatus("done")
+            # Skip if no scene version was found
+            if latest_version["version"] == 0:
+                job["status"] = "done"
+                continue
+
+            # Skip if an empty scene version exists
+            if len(latest_version["components"]) == 0:
+                job["status"] = "done"
+                continue
+
+            # Create Asset
+            asset_data = {
+                "name": latest_version["asset"]["name"],
+                "type": latest_version["asset"]["type"],
+                "parent": latest_version["asset"]["parent"],
+            }
+
+            asset_entity = session.query(
+                "Asset where name is \"{0}\" and type.id is \"{1}\" and "
+                "parent.id is \"{2}\"".format(
+                    asset_data["name"],
+                    asset_data["type"]["id"],
+                    asset_data["parent"]["id"]
+                )
+            ).first()
+
+            if not asset_entity:
+                asset_entity = session.create("Asset", asset_data)
+
+            # Create AssetVersion
+            assetversion_data = {
+                "version": latest_version["version"] + 1,
+                "asset": asset_entity,
+                "task": task
+            }
+
+            dst_asset_version = session.query(
+                "AssetVersion where version is \"{0}\" and asset.id is "
+                "\"{1}\" and task.id is \"{2}\"".format(
+                    assetversion_data["version"],
+                    assetversion_data["asset"]["id"],
+                    assetversion_data["task"]["id"]
+                )
+            ).first()
+
+            if not dst_asset_version:
+                dst_asset_version = session.create(
+                    "AssetVersion", assetversion_data
+                )
+
+            session.commit()
+        except:
+            job["status"] = "failed"
+        else:
+            job["status"] = "done"
+
+        session.commit()
 
 
-def register(registry, **kw):
+def register(session, **kw):
+    """Register event listener."""
 
-    # Validate that registry is the correct ftrack.Registry. If not,
-    # assume that register is being called with another purpose or from a
-    # new or incompatible API and return without doing anything.
-    if registry is not ftrack.EVENT_HANDLERS:
+    # Validate that session is an instance of ftrack_api.Session. If not,
+    # assume that register is being called from an incompatible API
+    # and return without doing anything.
+    if not isinstance(session, ftrack_api.Session):
         # Exit to avoid registering this plugin again.
         return
 
-    # Subscribe to events with the update topic.
-    ftrack.EVENT_HUB.subscribe("topic=ftrack.update", callback)
+    # Register the event handler
+    subscription = (
+        "topic=ftrack.update and source.applicationId=ftrack.client.web and "
+        "source.user.username={0}".format(getpass.getuser())
+    )
+    session.event_hub.subscribe(subscription, callback)
