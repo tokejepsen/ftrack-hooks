@@ -9,6 +9,7 @@ Select the entities to create structures from and run the action.
 ## Setup
 
 Add ```ftrack-hooks\create_structure``` to ```FTRACK_CONNECT_PLUGIN_PATH```.
+Add ```ftrack-hooks``` to ```PYTHONPATH```.
 
 By default no structure will be created. To get the action to scan for directories and files to make, you'll need to setup an application launch plugin. The launch plugin needs to append directories and files to the event in the following way:
 
@@ -19,9 +20,9 @@ event["data"]["files"].append(
 )
 ```
 
-Further the event contains the selection if needed; ```event["data"]["selection"]```
+Further the event contains the requested entities; ```event["data"]["entitites"]```
 
-The following example prints the selection, creates a directory and two files in the temporary folder of the OS.
+The following example prints the requested entities, creates a directory and two files in the temporary folder of the OS, for each entity.
 
 ```python
 import os
@@ -33,9 +34,10 @@ import ftrack_api
 def modify_launch(event):
     """Return each entities in the selection in data dictionaries."""
 
-    print event["selection"]
+    print event["data"]["entities"]
 
-    for item in event["data"].get("selection", []):
+    for entity in event["data"].get("entities", []):
+
         # Make a temporary directory
         directory = tempfile.mkdtemp()
         event["data"]["directories"].append(directory)

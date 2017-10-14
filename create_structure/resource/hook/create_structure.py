@@ -6,6 +6,7 @@ import traceback
 import logging
 
 import ftrack_api
+from ftrack_hooks.action import BaseAction
 
 
 def async(fn):
@@ -55,7 +56,7 @@ def create_job(event, session):
     session.commit()
 
 
-class CreateStructureAction(object):
+class CreateStructureAction(BaseAction):
     '''Create Structure action
 
     `label` a descriptive string identifing your action.
@@ -73,89 +74,10 @@ class CreateStructureAction(object):
     description = None
 
     def __init__(self, session):
-        '''Expects a ftrack_api.Session instance'''
+        """Expects a ftrack_api.Session instance"""
+        super(CreateStructureAction, self).__init__(session)
 
-        self.logger = logging.getLogger(
-            '{0}.{1}'.format(__name__, self.__class__.__name__)
-        )
-
-        if self.label is None:
-            raise ValueError(
-                'Action missing label.'
-            )
-
-        elif self.identifier is None:
-            raise ValueError(
-                'Action missing identifier.'
-            )
-
-        self._session = session
-
-    @classmethod
-    def clone_session(cls, session):
-        assert (
-            isinstance(session, ftrack_api.Session)
-        ), 'Must be ftrack_api.Session instance.'
-
-        return ftrack_api.Session(
-            session.server_url, session.api_key, session.api_user
-        )
-
-    def register(self):
-        '''Registers the action, subscribing the the discover and launch
-        topics.'''
-        self._session.event_hub.subscribe(
-            'topic=ftrack.action.discover', self._discover
-        )
-
-        self._session.event_hub.subscribe(
-            'topic=ftrack.action.launch and data.actionIdentifier={0}'.format(
-                self.identifier
-            ),
-            self._launch
-        )
-
-    def _discover(self, event):
-        args = self._translate_event(
-            self._session, event
-        )
-
-        accepts = self.discover(
-            self._session, *args
-        )
-
-        if accepts:
-            return {
-                'items': [{
-                    'label': self.label,
-                    'varian': self.variant,
-                    'description': self.description,
-                    'actionIdentifier': self.identifier,
-
-                }]
-            }
-
-    def discover(self, session, uid, entities, source, values, event):
-        '''Return true if we can handle the selected entities.
-
-        *session* is a `ftrack_api.Session` instance
-
-        *uid* is the unique identifier for the event
-
-        *entities* is a list of tuples each containing the entity type and
-        the entity id.
-        If the entity is a hierarchical you will always get the entity
-        type TypedContext, once retrieved through a get operation you
-        will have the "real" entity type ie. example Shot, Sequence
-        or Asset Build.
-
-        *source* dictionary containing information about the source of the
-        event, application id, current user etc.
-
-        *values* is a dictionary containing potential user settings
-
-        *event* the unmodified original event
-        '''
+    def discover(self, session, entities, event):
 
         # Only discover the action if any selection is made.
         if entities:
@@ -163,216 +85,97 @@ class CreateStructureAction(object):
 
         return False
 
-    def _translate_event(self, session, event):
-        '''Return *event* translated structure to be used with the API.'''
+    def get_children_recursive(self, entity, children=[]):
 
-        _uid = event['source']['id']
-        _source = event['source']
+        for child in entity["children"]:
+            children.append(child)
+            children.extend(self.get_children_recursive(child, []))
 
-        _values = event['data'].get('values', {})
-        _selection = event['data'].get('selection', [])
+        return children
 
-        _entities = list()
-        for entity in _selection:
-            _entities.append(
-                (
-                    self._get_entity_type(entity), entity.get('entityId')
-                )
-            )
+    def launch(self, session, entities, event):
 
-        return [
-            _uid,
-            _entities,
-            _source,
-            _values,
-            event
-        ]
+        if "values" in event["data"]:
 
-    def _get_entity_type(self, entity):
-        '''Return translated entity type tht can be used with API.'''
-        entity_type = entity.get('entityType')
-        object_typeid = None
+            entity_objects = []
 
-        for schema in self._session.schemas:
-            alias_for = schema.get('alias_for')
+            for entity_type, entity_id in entities:
+                entity = session.get(entity_type, entity_id)
+                entity_objects.append(entity)
 
-            if (
-                alias_for and isinstance(alias_for, dict) and
-                alias_for['id'].lower() == entity_type and
-                object_typeid == alias_for.get(
-                    'classifiers', {}
-                ).get('object_typeid')
-            ):
-
-                return schema['id']
-
-        for schema in self._session.schemas:
-            alias_for = schema.get('alias_for')
-
-            if (
-                alias_for and isinstance(alias_for, basestring) and
-                alias_for.lower() == entity_type
-            ):
-                return schema['id']
-
-        for schema in self._session.schemas:
-            if schema['id'].lower() == entity_type:
-                    return schema['id']
-
-        raise ValueError(
-            'Unable to translate entity type.'
-        )
-
-    def _launch(self, event):
-        args = self._translate_event(
-            self._session, event
-        )
-
-        interface = self._interface(
-            self._session, *args
-        )
-
-        if interface:
-            return interface
-
-        response = self.launch(
-            self._session, *args
-        )
-
-        return self._handle_result(
-            self._session, response, *args
-        )
-
-    def launch(self, session, uid, entities, source, values, event):
-        '''Callback method for the custom action.
-
-        return either a bool (True if successful or False if the action failed)
-        or a dictionary with they keys `message` and `success`, the message
-        should be a string and will be displayed as feedback to the user,
-        success should be a bool, True if successful or False if the action
-        failed.
-
-        *session* is a `ftrack_api.Session` instance
-
-        *uid* is the unique identifier for the event
-
-        *entities* is a list of tuples each containing the entity type and the
-        entity id.
-        If the entity is a hierarchical you will always get the entity
-        type TypedContext, once retrieved through a get operation you
-        will have the "real" entity type ie. example Shot, Sequence
-        or Asset Build.
-
-        *source* dictionary containing information about the source of the
-        event, application id, current user etc.
-
-        *values* is a dictionary containing potential user settings
-        from previous runs.
-
-        *event* the unmodified original event
-
-        '''
-        user = session.query(
-            'User where username is "{0}"'.format(os.environ["LOGNAME"])
-        ).one()
-        job = session.create(
-            'Job',
-            {
-                'user': user,
-                'status': 'running',
-                'data': json.dumps({
-                    'description': 'Create Structure: Scanning for data.'
-                })
-            }
-        )
-        # Commit to feedback to user about running job.
-        session.commit()
-
-        try:
-            data = event["data"]
-            data["selection"] = entities
-            data["directories"] = []
-            data["files"] = []
-            session.event_hub.publish(
-                ftrack_api.event.base.Event(
-                    topic='create_structure.launch',
-                    data=data
-                ),
-                synchronous=True
-            )
-        except:
-            print traceback.format_exc()
-            job["status"] = "failed"
-        else:
-            job["status"] = "done"
-
-        # Commit to end job.
-        session.commit()
-
-        create_job(event, session)
-
-        return True
-
-    def _interface(self, *args):
-        interface = self.interface(*args)
-
-        if interface:
-            return {
-                'items': interface
-            }
-
-    def interface(self, session, uid, entities, source, values, event):
-        '''Return a interface if applicable or None
-
-        *session* is a `ftrack_api.Session` instance
-
-        *uid* is the unique identifier for the event
-
-        *entities* is a list of tuples each containing the entity type and the
-        entity id.
-        If the entity is a hierarchical you will always get the entity
-        type TypedContext, once retrieved through a get operation you
-        will have the "real" entity type ie. example Shot, Sequence
-        or Asset Build.
-
-        *source* dictionary containing information about the source of the
-        event, application id, current user etc.
-
-        *values* is a dictionary containing potential user settings
-        from previous runs.
-
-        *event* the unmodified original event
-        '''
-        return None
-
-    def _handle_result(
-            self, session, result, uid, entities, source, values, event):
-        '''Validate the returned result from the action callback'''
-        if isinstance(result, bool):
-            result = {
-                'success': result,
-                'message': (
-                    '{0} launched successfully.'.format(
-                        self.label
+                # Collect children if requested
+                if event["data"]["values"]["include_children"]:
+                    entity_objects.extend(
+                        self.get_children_recursive(entity, [])
                     )
-                )
-            }
+                # Collect parents if requested
+                if event["data"]["values"]["include_parents"]:
+                    for item in reversed(entity['link'][:-1]):
+                        entity_objects.insert(
+                            0, session.get(item['type'], item['id'])
+                        )
 
-        elif isinstance(result, dict):
-            for key in ('success', 'message'):
-                if key in result:
-                    continue
-
-                raise KeyError(
-                    'Missing required key: {0}.'.format(key)
-                )
-
-        else:
-            self.logger.error(
-                'Invalid result type must be bool or dictionary!'
+            user = session.query(
+                'User where username is "{0}"'.format(os.environ["LOGNAME"])
+            ).one()
+            job = session.create(
+                'Job',
+                {
+                    'user': user,
+                    'status': 'running',
+                    'data': json.dumps({
+                        'description': 'Create Structure: Scanning for data.'
+                    })
+                }
             )
-        session.commit()
-        return result
+            # Commit to feedback to user about running job.
+            session.commit()
+
+            try:
+                data = event["data"]
+                data["entities"] = entity_objects
+                data["directories"] = []
+                data["files"] = []
+                session.event_hub.publish(
+                    ftrack_api.event.base.Event(
+                        topic='create_structure.launch',
+                        data=data
+                    ),
+                    synchronous=True
+                )
+            except:
+                print traceback.format_exc()
+                job["status"] = "failed"
+            else:
+                job["status"] = "done"
+
+            # Commit to end job.
+            session.commit()
+
+            create_job(event, session)
+
+            return True
+
+
+        return {
+            "success": True,
+            "message": "",
+            "items": [
+                {
+                    "label": "Include parents",
+                    "type": "boolean",
+                    "name": "include_parents",
+                    "value": False
+                },
+                {
+                    "label": "Include children",
+                    "type": "boolean",
+                    "name": "include_children",
+                    "value": False
+                }
+            ]
+        }
+
 
 
 def register(session):
