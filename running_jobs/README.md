@@ -11,3 +11,4 @@ This plugin adds the ability to set all running jobs to either ```Failed``` or `
 ## Setup
 
 Add ```ftrack-hooks\running_jobs``` to ```FTRACK_CONNECT_PLUGIN_PATH```.
+Add ```ftrack-hooks``` to ```PYTHONPATH```.
