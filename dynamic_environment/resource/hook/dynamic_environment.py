@@ -19,11 +19,15 @@ def load_env(path):
 def appendPath(path, key, environment):
     '''Append *path* to *key* in *environment*.'''
     try:
-        environment[key] = (
-            os.pathsep.join([
-                environment[key], str(path)
-            ])
-        )
+        # Return early if path already exists.
+        if path in environment[key]:
+            return environment
+        else:
+            environment[key] = (
+                os.pathsep.join([
+                    environment[key], str(path)
+                ])
+            )
     except KeyError:
         environment[key] = str(path)
 
