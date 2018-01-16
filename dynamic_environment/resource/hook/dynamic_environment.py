@@ -88,8 +88,10 @@ def dynamic_environment(event):
                 basenames.append("_".join(iteration))
 
     # Construct environment files from environment paths and basenames.
+    # Reversing the order of the environment paths to make sure they are added
+    # in the correct order later.
     env_files = []
-    for env_path in env_paths:
+    for env_path in reversed(env_paths):
         for name in basenames:
             env_files.append(os.path.join(env_path, name + ".json"))
 
