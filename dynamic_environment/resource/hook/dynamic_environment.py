@@ -34,7 +34,7 @@ def appendPath(path, key, environment):
     return environment
 
 
-def dynamic_environment(event):
+def modify_launch(event):
     '''Modify the application environment.'''
     data = event['data']
     app = data['application']
@@ -44,6 +44,13 @@ def dynamic_environment(event):
     taskid = data['context']['selection'][0].get('entityId')
     session = ftrack_api.Session()
     task = session.query('Task where id is {0}'.format(taskid)).one()
+
+    environment = get_dynamic_environment(session, task, app["identifier"])
+    for key, value in environment.iteritems():
+        appendPath(value, key, data['options']['env'])
+
+
+def get_dynamic_environment(session, entity, application_identifier):
 
     # get location of json environmnets from env var
     try:
@@ -56,7 +63,7 @@ def dynamic_environment(event):
          )
 
     enviro_attr = None
-    for item in reversed(task['link']):
+    for item in reversed(entity['link']):
         entity = session.get(item['type'], item['id'])
         # check if the attribute is empty, if not use it
         if bool(entity['custom_attributes']['environment'].rstrip()):
@@ -70,7 +77,7 @@ def dynamic_environment(event):
     # Always search for platform and application identifier environment files.
     name = platform.system().lower()
     names.append(name)
-    name += "_" + app["identifier"]
+    name += "_" + application_identifier
     names.append(name)
     # Loop through environment attributes and add names.
     if enviro_attr:
@@ -99,6 +106,7 @@ def dynamic_environment(event):
     # in reverse to make sure that higher levels of environment variables do
     # not prepend lower level environment variables. For example
     # "windows_maya_2017.json" should come before "windows_maya.json".
+    environment = {}
     for env_file in reversed(env_files):
         try:
             env_add = load_env(env_file)
@@ -122,7 +130,9 @@ def dynamic_environment(event):
                 for key in keys:
                     found_key = os.path.abspath(os.environ.get(key[1:-1]))
                     path = path.replace(key, found_key)
-                appendPath(path, str(variable), data['options']['env'])
+                appendPath(path, str(variable), environment)
+
+    return environment
 
 
 def register(session):
@@ -135,5 +145,5 @@ def register(session):
 
     session.event_hub.subscribe(
         "topic=ftrack.connect.application.launch",
-        dynamic_environment
+        modify_launch
     )
