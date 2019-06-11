@@ -40,7 +40,6 @@ class BatchTasksAction(BaseAction):
         *event* the unmodified original event
 
         '''
-
         # Only discover the action if any selection is made.
         if entities:
             return True
@@ -175,13 +174,6 @@ class BatchTasksAction(BaseAction):
 
 
 def register(session):
-
-    # Validate that session is an instance of ftrack_api.Session. If not,assume
-    # that register is being called from an old or incompatible API and return
-    # without doing anything.
-    if not isinstance(session, ftrack_api.Session):
-        return
-
     # Create action and register to respond to discover and launch actions.
     action = BatchTasksAction(session)
     action.register()
