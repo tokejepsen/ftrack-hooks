@@ -1,6 +1,6 @@
 # :coding: utf-8
 import logging
-import getpass
+import sys
 
 
 class BaseAction(object):
@@ -24,6 +24,8 @@ class BaseAction(object):
     def __init__(self, session):
         '''Expects a ftrack_api.Session instance'''
 
+        self.session = session
+
         self.logger = logging.getLogger(
             '{0}.{1}'.format(__name__, self.__class__.__name__)
         )
@@ -45,7 +47,7 @@ class BaseAction(object):
         topics.'''
         self._session.event_hub.subscribe(
             'topic=ftrack.action.discover and source.user.username={0}'.format(
-                getpass.getuser()
+                self.session.api_user
             ),
             self._discover
         )
@@ -135,8 +137,14 @@ class BaseAction(object):
         for schema in self._session.schemas:
             alias_for = schema.get('alias_for')
 
+            check_string = None
+            if sys.version_info[0] < 3:
+                check_string = basestring
+            else:
+                check_string = str
+
             if (
-                alias_for and isinstance(alias_for, basestring) and
+                alias_for and isinstance(alias_for, check_string) and
                 alias_for.lower() == entity_type
             ):
                 return schema['id']
