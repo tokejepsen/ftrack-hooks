@@ -151,7 +151,7 @@ class BaseAction(object):
 
         for schema in self._session.schemas:
             if schema['id'].lower() == entity_type:
-                    return schema['id']
+                return schema['id']
 
         raise ValueError(
             'Unable to translate entity type.'
