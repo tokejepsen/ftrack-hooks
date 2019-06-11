@@ -1,5 +1,3 @@
-import ftrack_api
-
 from ftrack_hooks.action import BaseAction
 
 
@@ -140,7 +138,7 @@ class BatchTasksAction(BaseAction):
                 # Create tasks on each entity
                 for entity_type, entity_id in entities:
                     entity = session.get(entity_type, entity_id)
-                    for count in range(0, len(values.keys()) / 2):
+                    for count in range(0, int(len(values.keys()) / 2)):
                         task_type = session.query(
                             'Type where id is "{0}"'.format(
                                 values["task_{0}_typeid".format(count)]
